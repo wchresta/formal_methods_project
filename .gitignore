@@ -1,0 +1,10 @@
+*.aes
+*.pdf
+*.xoj
+*.sh
+theories/*.aes
+project_report/*.log
+project_report/*.aux
+project_report/*.pdf
+project_report/*.gz
+project_report/*.toc

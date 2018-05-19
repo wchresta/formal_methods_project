@@ -1,0 +1,269 @@
+theory P1 begin
+
+// Function signature and definition of the equational theory E
+
+functions: fst/1, pair/2, pk/1, sign/2, snd/1, true/0, verify/3
+equations:
+    fst(<x.1, x.2>) = x.1,
+    snd(<x.1, x.2>) = x.2,
+    verify(sign(x.1, x.2), x.1, pk(x.2)) = true
+
+rule (modulo E) SetupSymmetricKey:
+   [ Fr( ~k ) ] --[ InitKey( ) ]-> [ !Ltk( $A, $B, ~k ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Reveal_ltk:
+   [ !Ltk( A, B, k ) ] --[ Reveal( A ), Reveal( B ) ]-> [ Out( k ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Init_A:
+   [ Fr( ~id ), !Ltk( I, R, ltkIR ), !Ltk( R, I, ltkRI ) ]
+  --[ Init_A( ), Create_A( I, ~id ) ]->
+   [ St_A_1( I, ~id, R, ltkIR, ltkRI ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Init_B:
+   [ Fr( ~id ), !Ltk( I, R, ltkIR ), !Ltk( R, I, ltkRI ) ]
+  --[ Init_B( ), Create_B( R, ~id ) ]->
+   [ St_B_1( R, ~id, I, ltkIR, ltkRI ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) I_1:
+   [ St_A_1( I, id, R, ltkIR, ltkRI ), Fr( ~x ) ]
+  --[ Send( I, ~x ) ]->
+   [
+   St_A_2( I, id, R, ltkIR, ltkRI, ~x ),
+   Running( I, R, <'R', 'I', ~x> ), Out( ~x )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) R_1:
+   [ St_B_1( R, id, I, ltkIR, ltkRI ), In( x ) ]
+  --[
+  Receive( R, x ), Running( R, I, <'I', 'R', x> ),
+  Commit( R, I, <'R', 'I', x> ), Honest( R )
+  ]->
+   [ St_B_2( R, id, I, ltkIR, ltkRI, x ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) R_2:
+   [ St_B_2( R, id, I, ltkIR, ltkRI, x ) ]
+  --[ Send( R, sign(x, ltkRI) ), FinishR( ) ]->
+   [ St_B_3( R, id, I, ltkIR, ltkRI, x ), Out( sign(x, ltkRI) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) I_2:
+   [ St_A_2( I, id, R, ltkIR, ltkRI, x ), In( sign(x, ltkRI) ) ]
+  --[
+  Receive( I, sign(x, ltkRI) ), Commit( I, R, <'I', 'R', x> ),
+  FinishI( ), Honest( I )
+  ]->
+   [ St_A_3( I, id, R, ltkIR, ltkRI, x ) ]
+
+  /* has exactly the trivial AC variant */
+
+lemma executable:
+  exists-trace
+  "∃ #i #j.
+    ((((((FinishI( ) @ #i) ∧ (FinishR( ) @ #j)) ∧
+        (¬(∃ A #j.1. Reveal( A ) @ #j.1))) ∧
+       (∀ #j1 #j2 #j3.
+         (((InitKey( ) @ #j1) ∧ (InitKey( ) @ #j2)) ∧ (InitKey( ) @ #j3)) ⇒
+         (((#j1 = #j2) ∨ (#j1 = #j3)) ∨ (#j2 = #j3)))) ∧
+      (∀ #j1 #j2.
+        ((Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+     (∀ #j1 #j2.
+       ((Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+    (∃ A B idA idB #i.1 #j.1.
+      ((Create_A( A, idA ) @ #i.1) ∧ (Create_B( B, idB ) @ #j.1)) ∧
+      (¬(A = B)))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i #j.
+  (FinishI( ) @ #i) ∧ (FinishR( ) @ #j)
+ ∧
+  (∀ A #j.1. (Reveal( A ) @ #j.1) ⇒ ⊥) ∧
+  (∀ #j1 #j2 #j3.
+    (InitKey( ) @ #j1) ∧ (InitKey( ) @ #j2) ∧ (InitKey( ) @ #j3)
+   ⇒
+    ((#j1 = #j2) ∨ (#j1 = #j3) ∨ (#j2 = #j3))) ∧
+  (∀ #j1 #j2. (Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∀ #j1 #j2. (Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∃ A B idA idB #i.1 #j.1.
+    (Create_A( A, idA ) @ #i.1) ∧ (Create_B( B, idB ) @ #j.1)
+   ∧
+    ¬(A = B))"
+*/
+simplify
+solve( St_A_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
+  case I_1
+  solve( St_B_2( R, id.1, I, ltkIR, ltkRI, x.1 ) ▶₀ #j )
+    case R_1
+    solve( (#vr.1 = #vr.2)  ∥ (#vr.1 = #vr.4)  ∥ (#vr.2 = #vr.4) )
+      case case_2
+      solve( (#vr.1 = #vr.2)  ∥ (#vr.1 = #vr.4)  ∥ (#vr.2 = #vr.4) )
+        case case_3
+        solve( !KU( sign(~x, ~k.1) ) @ #vk )
+          case R_2
+          solve( !KU( ~x ) @ #vk.1 )
+            case I_1
+            SOLVED // trace found
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma noninjectiveagreementINITIATOR:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'I', 'R', t> ) @ #i) ⇒
+    ((∃ #j. Running( b, a, <'I', 'R', t> ) @ #j) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'I', 'R', t> ) @ #i)
+ ∧
+  (∀ #j. (Running( b, a, <'I', 'R', t> ) @ #j) ⇒ ⊥) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'I', 'R', t> ) @ #i )
+  case I_2
+  solve( St_A_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
+    case I_1
+    solve( !KU( sign(~x, ~k.1) ) @ #vk )
+      case R_2
+      by contradiction /* from formulas */
+    next
+      case c_sign
+      solve( !KU( ~k.1 ) @ #vk.2 )
+        case Reveal_ltk
+        by contradiction /* from formulas */
+      qed
+    qed
+  qed
+qed
+
+lemma injectiveagreementINITIATOR:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'I', 'R', t> ) @ #i) ⇒
+    ((∃ #j.
+       (Running( b, a, <'I', 'R', t> ) @ #j) ∧
+       (¬(∃ a2 b2 #i2.
+           (Commit( a2, b2, <'I', 'R', t> ) @ #i2) ∧ (¬(#i2 = #i))))) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'I', 'R', t> ) @ #i)
+ ∧
+  (∀ #j.
+    (Running( b, a, <'I', 'R', t> ) @ #j)
+   ⇒
+    ∃ a2 b2 #i2.
+     (Commit( a2, b2, <'I', 'R', t> ) @ #i2) ∧ ¬(#i2 = #i)) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'I', 'R', t> ) @ #i )
+  case I_2
+  solve( St_A_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
+    case I_1
+    solve( !KU( sign(~x, ~k.1) ) @ #vk )
+      case R_2
+      solve( (#i2 < #i)  ∥ (#i < #i2) )
+        case case_1
+        solve( Commit( a2, b2, <'I', 'R', ~x> ) @ #i2 )
+          case I_2
+          solve( St_A_2( a2, id.1, b2, ltkIR, ltkRI, ~x ) ▶₀ #i2 )
+            case I_1
+            by contradiction /* cyclic */
+          qed
+        qed
+      next
+        case case_2
+        solve( Commit( a2, b2, <'I', 'R', ~x> ) @ #i2 )
+          case I_2
+          solve( St_A_2( a2, id.1, b2, ltkIR, ltkRI, ~x ) ▶₀ #i2 )
+            case I_1
+            by contradiction /* cyclic */
+          qed
+        qed
+      qed
+    next
+      case c_sign
+      solve( !KU( ~k.1 ) @ #vk.2 )
+        case Reveal_ltk
+        by contradiction /* from formulas */
+      qed
+    qed
+  qed
+qed
+
+lemma noninjectiveagreementRESPONDER:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'R', 'I', t> ) @ #i) ⇒
+    ((∃ #j. Running( b, a, <'R', 'I', t> ) @ #j) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'R', 'I', t> ) @ #i)
+ ∧
+  (∀ #j. (Running( b, a, <'R', 'I', t> ) @ #j) ⇒ ⊥) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'R', 'I', t> ) @ #i )
+  case R_1
+  solve( St_B_1( a, id, b, ltkIR, ltkRI ) ▶₀ #i )
+    case Init_B
+    SOLVED // trace found
+  qed
+qed
+
+lemma injectiveagreementRESPONDER:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'R', 'I', t> ) @ #i) ⇒
+    ((∃ #j.
+       (Running( b, a, <'R', 'I', t> ) @ #j) ∧
+       (¬(∃ a2 b2 #i2.
+           (Commit( a2, b2, <'R', 'I', t> ) @ #i2) ∧ (¬(#i2 = #i))))) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'R', 'I', t> ) @ #i)
+ ∧
+  (∀ #j.
+    (Running( b, a, <'R', 'I', t> ) @ #j)
+   ⇒
+    ∃ a2 b2 #i2.
+     (Commit( a2, b2, <'R', 'I', t> ) @ #i2) ∧ ¬(#i2 = #i)) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'R', 'I', t> ) @ #i )
+  case R_1
+  solve( St_B_1( a, id, b, ltkIR, ltkRI ) ▶₀ #i )
+    case Init_B
+    SOLVED // trace found
+  qed
+qed
+
+/* All well-formedness checks were successful. */
+
+end

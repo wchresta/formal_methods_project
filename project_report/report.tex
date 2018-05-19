@@ -1,0 +1,52 @@
+\documentclass[a4paper]{article}
+
+\title{Project report: Formal Methods for Information Security}
+\author{Sabina Fischlin \& Wanja Chresta}
+
+\begin{document}
+\maketitle
+
+\newcommand{\Fr}{\texttt{\textasciitilde{}Fr}}
+\newcommand{\LTK}{\texttt{!LTK}}
+
+\section{PACE Protocol}
+\subsection{Assignment 1.1, Theory P1}
+For this theory, we use the signing builtin to be able to create a MAC. We setup symmetric keys using a \Fr{} value that goes into \LTK .
+\subsubsection{Alice and Bob}
+\begin{eqnarray*}
+A \to B        & : & x\\
+A \leftarrow B & : & [x]_{k(A,B)}
+\end{eqnarray*}
+\subsubsection{Results}
+We were able to prove {\em noninjective} and {\em injective agreement} for the initiator. We have been also able to disproove them for the responder (obviously).
+
+\subsection{Assignment 1.2, Theory P2}
+We interleave two P1 protocols with eachother, as described in the assignment. The actors have seperate symmetric shared keys $k(A,B)$ and $k(B,A)$ in their initial state.
+\subsubsection{Alice and Bob}
+\begin{eqnarray*}
+A \to B        & : & x\\
+A \leftarrow B & : & y\\
+A \to B        & : & [y]_{k(A,B)}\\
+A \leftarrow B & : & [x]_{k(A,B)} 
+\end{eqnarray*}
+\subsubsection{Results}
+...
+
+\subsection{Assignment 1.3, Theory P3}
+...
+\subsubsection{Alice and Bob}
+\begin{eqnarray*}
+...
+\end{eqnarray*}
+\subsubsection{Results}
+
+\subsection{Assignment 1.4, Theory P4}
+...
+\subsubsection{Alice and Bob}
+\begin{eqnarray*}
+...
+\end{eqnarray*}
+\subsubsection{Results}
+...
+
+\end{document}
