@@ -119,6 +119,41 @@ solve( St_A_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
   qed
 qed
 
+lemma attacker_can_be_R:
+  exists-trace
+  "∃ #i. (FinishI( ) @ #i) ∧ (¬(∃ #i.1. Init_B( ) @ #i.1))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i. (FinishI( ) @ #i) ∧ ∀ #i.1. (Init_B( ) @ #i.1) ⇒ ⊥"
+*/
+simplify
+solve( St_A_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
+  case I_1
+  solve( !KU( sign(~x, ~k.1) ) @ #vk )
+    case c_sign
+    solve( !KU( ~k.1 ) @ #vk.2 )
+      case Reveal_ltk
+      solve( !KU( ~x ) @ #vk.2 )
+        case I_1
+        SOLVED // trace found
+      qed
+    qed
+  qed
+qed
+
+lemma attacker_can_be_I:
+  exists-trace
+  "∃ #i. (FinishR( ) @ #i) ∧ (¬(∃ #i.1. Init_A( ) @ #i.1))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i. (FinishR( ) @ #i) ∧ ∀ #i.1. (Init_A( ) @ #i.1) ⇒ ⊥"
+*/
+simplify
+solve( St_B_2( R, id, I, ltkIR, ltkRI, x ) ▶₀ #i )
+  case R_1
+  SOLVED // trace found
+qed
+
 lemma noninjectiveagreementINITIATOR:
   all-traces
   "∀ a b t #i.

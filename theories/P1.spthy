@@ -105,6 +105,17 @@ lemma executable: // verified
    & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
    "
 
+// Ensure attacker can act as R
+lemma attacker_can_be_R: // verified
+  exists-trace
+    "Ex #i. FinishI()@i
+   & not (Ex #i. Init_B()@i)"
+
+// Ensure attacker can act as I
+lemma attacker_can_be_I: // verified
+  exists-trace
+    "Ex #i. FinishR()@i
+   & not (Ex #i. Init_A()@i)"
 
 // Given, immutable lemmas
 /* 
