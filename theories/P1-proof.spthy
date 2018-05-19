@@ -34,11 +34,8 @@ rule (modulo E) Init_B:
 
 rule (modulo E) I_1:
    [ St_A_1( I, id, R, ltkIR, ltkRI ), Fr( ~x ) ]
-  --[ Send( I, ~x ) ]->
-   [
-   St_A_2( I, id, R, ltkIR, ltkRI, ~x ),
-   Running( I, R, <'R', 'I', ~x> ), Out( ~x )
-   ]
+  --[ Send( I, ~x ), Running( I, R, <'R', 'I', ~x> ) ]->
+   [ St_A_2( I, id, R, ltkIR, ltkRI, ~x ), Out( ~x ) ]
 
   /* has exactly the trivial AC variant */
 
