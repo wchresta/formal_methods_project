@@ -1,4 +1,4 @@
-theory P2 
+theory P2a
 begin
 
 builtins: signing
@@ -47,8 +47,7 @@ rule I_1:
   [ St_A_1(I, id, R, ltkIR, ltkRI)
   , Fr(~x)
   ]
---[ Running(R,I, <'I','R',~x>)
-  , Honest(I) 
+--[ 
   ]->
   [ St_A_2(I, id, R, ltkIR, ltkRI, ~x)
   , Out(~x)
@@ -69,8 +68,8 @@ rule R_2:
   [ St_B_2(R, id, I, ltkIR, ltkRI, x)
   , Fr(~y)
   ]
---[ Running(I,R, <'R','I',~y>)
-  , Send(R,~y)
+--[ Send(R,~y)
+  , Running(I,R, <'R','I',x,~y>)
   ]->
   [ St_B_3(R, id, I, ltkIR, ltkRI, x, ~y)
   , Out(~y)
@@ -81,6 +80,7 @@ rule I_2:
   , In(y)
   ]
 --[ Receive(I, y) 
+  , Running(R,I, <'I','R',x,y>)
   ]->
   [ St_A_3(I, id, R, ltkIR, ltkRI, x, y)
   ]
@@ -117,7 +117,8 @@ rule R_4:
   [ St_B_4(R, id, I, ltkIR, ltkRI, x, y)
   ]
 --[ Send(R, m)
-  , Commit(R,I,<'R','I',y>)
+  , Commit(R,I,<'R','I',x,y>)
+  , Honest(I)
   , Honest(R)
   , FinishR()
   ]->
@@ -132,8 +133,9 @@ rule I_4:
   , In(m)
   ]
 --[ Receive(I, m)
-  , Commit(I,R,<'I','R',x>) 
+  , Commit(I,R,<'I','R',x,y>) 
   , Honest(I)
+  , Honest(R)
   , FinishI()
   ]->
   [ St_A_5(I, id, R, ltkIR, ltkRI, x, y)
@@ -141,7 +143,7 @@ rule I_4:
 
 
 // Own lemma
-lemma executable:
+lemma executable: // verified
   exists-trace
     "Ex #i #j. FinishI()@i & FinishR()@j 
    & not (Ex A #j. Reveal(A)@j)
@@ -152,15 +154,24 @@ lemma executable:
    & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
    "
 
-/*
-   & All x y #i. (NotEq(x,y)@i ==> not x=y)
-   & Ex #i A id.
-      (Create_A(A,id)@i & (All #j AA idd. Create_A(AA,idd)@j ==> #i=#j))
-   & Ex #i B id.
-      (Create_B(B,id)@i & (All #j BB idd. Create_B(BB,idd)@j ==> #i=#j))
-   & Ex #i #j A B id idd.
-      (Create_A(A,id)@i & Create_B(B,idd)@j & not #i = #j)
-*/
+// Ensure attacker can act as R
+lemma attacker_can_be_R: // verified
+  exists-trace
+    "Ex #i. FinishI()@i
+   & not (Ex #i. Init_B()@i)
+   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
+   "
+
+// Ensure attacker can act as I
+lemma attacker_can_be_I: // verified
+  exists-trace
+    "Ex #i. FinishR()@i
+   & not (Ex #i. Init_A()@i)
+   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
+   "
+   
+
+
 
 // Given, immutable lemmas
 /*
