@@ -1,0 +1,1523 @@
+theory OTR3 begin
+
+// Function signature and definition of the equational theory E
+
+builtins: diffie-hellman
+functions: adec/2, aenc/2, fst/1, pair/2, pk/1, sign/2, snd/1,
+           true/0, verify/3
+equations:
+    adec(aenc(x.1, pk(x.2)), x.2) = x.1,
+    fst(<x.1, x.2>) = x.1,
+    snd(<x.1, x.2>) = x.2,
+    verify(sign(x.1, x.2), x.1, pk(x.2)) = true
+
+rule (modulo E) Register_pk:
+   [ Fr( ~ltkA ) ]
+  --[ CreateKey( $A ) ]->
+   [ !Ltk( $A, ~ltkA ), !Pk( $A, pk(~ltkA) ), Out( pk(~ltkA) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Reveal_ltk:
+   [ !Ltk( A, ltkA ) ] --[ Reveal( A ) ]-> [ Out( ltkA ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Init_A:
+   [ Fr( ~id ), !Pk( A, pk(~ltkA) ), !Pk( B, pkLtkB ) ]
+  --[ Init_A( ), InitA( A ), NotEq( A, B ) ]->
+   [ St_A_1( A, ~id, B, ~ltkA, pkLtkB ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Init_B:
+   [ Fr( ~id ), !Pk( B, pk(~ltkB) ), !Pk( A, pkLtkA ) ]
+  --[ Init_B( ), InitB( B ), NotEq( A, B ) ]->
+   [ St_B_1( B, ~id, A, ~ltkB, pkLtkA ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) I_1:
+   [ St_A_1( A, id, B, ltkA, pkLtkB ), Fr( ~x ) ]
+  --[ Send( A, <<'g'^~x, sign(<'g'^~x, B>, ltkA)>, pk(ltkA)> ) ]->
+   [
+   St_A_2( A, id, B, ltkA, pkLtkB, ~x ),
+   Out( <<'g'^~x, sign(<'g'^~x, B>, ltkA)>, pk(ltkA)> ),
+   Secret( A, ~x ), Honest( A )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) R_1:
+   [ St_B_1( B, id, A, ltkB, pkLtkA ), In( <<X, signXltkA>, pkLtkA> )
+   ]
+  --[
+  Receive( B, <<X, signXltkA>, pkLtkA> ),
+  IsTrue( verify(signXltkA, <X, B>, pkLtkA) )
+  ]->
+   [ St_B_2( B, id, A, ltkB, pkLtkA, X ) ]
+
+  /*
+  rule (modulo AC) R_1:
+     [ St_B_1( B, id, A, ltkB, pkLtkA ), In( <<X, signXltkA>, pkLtkA> )
+     ]
+    --[ Receive( B, <<X, signXltkA>, pkLtkA> ), IsTrue( z ) ]->
+     [ St_B_2( B, id, A, ltkB, pkLtkA, X ) ]
+    variants (modulo AC)
+    1. B     = B.9
+       X     = X.9
+       pkLtkA
+             = pkLtkA.9
+       signXltkA
+             = signXltkA.9
+       z     = verify(signXltkA.9, <X.9, B.9>, pkLtkA.9)
+    
+    2. B     = x.9
+       X     = x.10
+       pkLtkA
+             = pk(x.11)
+       signXltkA
+             = sign(<x.10, x.9>, x.11)
+       z     = true
+  */
+
+rule (modulo E) R_2:
+   [ St_B_2( B, id, A, ltkB, pkLtkA, X ), Fr( ~y ) ]
+  --[
+  Send( B, <<'g'^~y, sign(<'g'^~y, A>, ltkB)>, pk(ltkB)> ),
+  Running( B, A, <'I', 'R', X^~y> ),
+  Commit( B, A, <'R', 'I', X^~y> ), FinishR( ), Secret( B, ~y ),
+  Secret( B, X^~y ), Honest( B ), Honest( A )
+  ]->
+   [
+   St_B_3( B, id, A, ltkB, pkLtkA, X^~y ),
+   Out( <<'g'^~y, sign(<'g'^~y, A>, ltkB)>, pk(ltkB)> )
+   ]
+
+  /*
+  rule (modulo AC) R_2:
+     [ St_B_2( B, id, A, ltkB, pkLtkA, X ), Fr( ~y ) ]
+    --[
+    Send( B, <<'g'^~y, sign(<'g'^~y, A>, ltkB)>, pk(ltkB)> ),
+    Running( B, A, <'I', 'R', z> ), Commit( B, A, <'R', 'I', z> ),
+    FinishR( ), Secret( B, ~y ), Secret( B, z ), Honest( B ),
+    Honest( A )
+    ]->
+     [
+     St_B_3( B, id, A, ltkB, pkLtkA, z ),
+     Out( <<'g'^~y, sign(<'g'^~y, A>, ltkB)>, pk(ltkB)> )
+     ]
+    variants (modulo AC)
+    1. ~y    = ~y.13
+       X     = X.16
+       z     = X.16^~y.13
+    
+    2. ~y    = ~y.17
+       X     = z.24^inv(~y.17)
+       z     = z.24
+    
+    3. ~y    = ~y.77
+       X     = x.151^x.152
+       z     = x.151^(~y.77*x.152)
+    
+    4. ~y    = ~y.78
+       X     = x.153^inv((~y.78*x.154))
+       z     = x.153^inv(x.154)
+    
+    5. ~y    = ~y.78
+       X     = x.153^(x.154*inv(~y.78))
+       z     = x.153^x.154
+    
+    6. ~y    = ~y.79
+       X     = x.154^(x.156*inv((~y.79*x.155)))
+       z     = x.154^(x.156*inv(x.155))
+  */
+
+rule (modulo E) I_2:
+   [
+   St_A_2( A, id, B, ltkA, pkLtkB, x ), In( <<Y, signYltkB>, pkLtkB> )
+   ]
+  --[
+  Receive( A, <<Y, signYltkB>, pkLtkB> ),
+  Commit( A, B, <'I', 'R', Y^x> ), Running( A, B, <'R', 'I', Y^x> ),
+  Honest( A ), Honest( B ), FinishI( ),
+  IsTrue( verify(signYltkB, <Y, A>, pkLtkB) ), Secret( A, Y^x )
+  ]->
+   [ St_A_3( A, id, B, ltkA, pkLtkB, Y^x ) ]
+
+  /*
+  rule (modulo AC) I_2:
+     [
+     St_A_2( A, id, B, ltkA, pkLtkB, x ), In( <<Y, signYltkB>, pkLtkB> )
+     ]
+    --[
+    Receive( A, <<Y, signYltkB>, pkLtkB> ),
+    Commit( A, B, <'I', 'R', z> ), Running( A, B, <'R', 'I', z> ),
+    Honest( A ), Honest( B ), FinishI( ), IsTrue( z.1 ), Secret( A, z )
+    ]->
+     [ St_A_3( A, id, B, ltkA, pkLtkB, z ) ]
+    variants (modulo AC)
+     1. A     = A.20
+        Y     = Y.22
+        pkLtkB
+              = pkLtkB.25
+        signYltkB
+              = signYltkB.26
+        x     = one
+        z     = Y.22
+        z.1   = verify(signYltkB.26, <Y.22, A.20>, pkLtkB.25)
+    
+     2. A     = A.21
+        Y     = Y.23
+        pkLtkB
+              = pkLtkB.26
+        signYltkB
+              = signYltkB.27
+        x     = x.28
+        z     = Y.23^x.28
+        z.1   = verify(signYltkB.27, <Y.23, A.21>, pkLtkB.26)
+    
+     3. A     = A.22
+        Y     = z.30^inv(x.29)
+        pkLtkB
+              = pkLtkB.27
+        signYltkB
+              = signYltkB.28
+        x     = x.29
+        z     = z.30
+        z.1   = verify(signYltkB.28, <z.30^inv(x.29), A.22>, pkLtkB.27)
+    
+     4. A     = A.27
+        Y     = z.35^x.52
+        pkLtkB
+              = pkLtkB.32
+        signYltkB
+              = signYltkB.33
+        x     = inv(x.52)
+        z     = z.35
+        z.1   = verify(signYltkB.33, <z.35^x.52, A.27>, pkLtkB.32)
+    
+     5. A     = A.27
+        Y     = x.51^x.52
+        pkLtkB
+              = pkLtkB.32
+        signYltkB
+              = signYltkB.33
+        x     = x.34
+        z     = x.51^(x.34*x.52)
+        z.1   = verify(signYltkB.33, <x.51^x.52, A.27>, pkLtkB.32)
+    
+     6. A     = A.28
+        Y     = Y.30
+        pkLtkB
+              = pk(x.54)
+        signYltkB
+              = sign(<Y.30, A.28>, x.54)
+        x     = x.35
+        z     = Y.30^x.35
+        z.1   = true
+    
+     7. A     = A.28
+        Y     = Y.30
+        pkLtkB
+              = pk(x.54)
+        signYltkB
+              = sign(<Y.30, A.28>, x.54)
+        x     = one
+        z     = Y.30
+        z.1   = true
+    
+     8. A     = A.28
+        Y     = z.36^(x.53*inv(x.54))
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = (x.54*inv(x.53))
+        z     = z.36
+        z.1   = verify(signYltkB.34, <z.36^(x.53*inv(x.54)), A.28>,
+                       pkLtkB.33)
+    
+     9. A     = A.28
+        Y     = x.52^x.53
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = inv((x.53*x.54))
+        z     = x.52^inv(x.54)
+        z.1   = verify(signYltkB.34, <x.52^x.53, A.28>, pkLtkB.33)
+    
+    10. A     = A.28
+        Y     = x.52^x.53
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = (x.54*inv(x.53))
+        z     = x.52^x.54
+        z.1   = verify(signYltkB.34, <x.52^x.53, A.28>, pkLtkB.33)
+    
+    11. A     = A.28
+        Y     = x.52^inv(x.53)
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = (x.53*x.54)
+        z     = x.52^x.54
+        z.1   = verify(signYltkB.34, <x.52^inv(x.53), A.28>, pkLtkB.33)
+    
+    12. A     = A.28
+        Y     = x.52^inv(x.54)
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = inv(x.53)
+        z     = x.52^inv((x.53*x.54))
+        z.1   = verify(signYltkB.34, <x.52^inv(x.54), A.28>, pkLtkB.33)
+    
+    13. A     = A.28
+        Y     = x.52^inv((x.35*x.54))
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = x.35
+        z     = x.52^inv(x.54)
+        z.1   = verify(signYltkB.34, <x.52^inv((x.35*x.54)), A.28>,
+                       pkLtkB.33)
+    
+    14. A     = A.28
+        Y     = x.52^(x.53*x.54)
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = inv(x.53)
+        z     = x.52^x.54
+        z.1   = verify(signYltkB.34, <x.52^(x.53*x.54), A.28>, pkLtkB.33)
+    
+    15. A     = A.28
+        Y     = x.52^(x.54*inv(x.35))
+        pkLtkB
+              = pkLtkB.33
+        signYltkB
+              = signYltkB.34
+        x     = x.35
+        z     = x.52^x.54
+        z.1   = verify(signYltkB.34, <x.52^(x.54*inv(x.35)), A.28>,
+                       pkLtkB.33)
+    
+    16. A     = A.29
+        Y     = z.37^x.55
+        pkLtkB
+              = pk(x.56)
+        signYltkB
+              = sign(<z.37^x.55, A.29>, x.56)
+        x     = inv(x.55)
+        z     = z.37
+        z.1   = true
+    
+    17. A     = A.29
+        Y     = z.37^inv(x.36)
+        pkLtkB
+              = pk(x.56)
+        signYltkB
+              = sign(<z.37^inv(x.36), A.29>, x.56)
+        x     = x.36
+        z     = z.37
+        z.1   = true
+    
+    18. A     = A.29
+        Y     = x.53^x.54
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.56*inv((x.54*x.55)))
+        z     = x.53^(x.56*inv(x.55))
+        z.1   = verify(signYltkB.35, <x.53^x.54, A.29>, pkLtkB.34)
+    
+    19. A     = A.29
+        Y     = x.53^inv(x.54)
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.56*inv(x.55))
+        z     = x.53^(x.56*inv((x.54*x.55)))
+        z.1   = verify(signYltkB.35, <x.53^inv(x.54), A.29>, pkLtkB.34)
+    
+    20. A     = A.29
+        Y     = x.53^inv((x.54*x.55))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.55*x.56)
+        z     = x.53^(x.56*inv(x.54))
+        z.1   = verify(signYltkB.35, <x.53^inv((x.54*x.55)), A.29>,
+                       pkLtkB.34)
+    
+    21. A     = A.29
+        Y     = x.53^inv((x.55*x.56))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.56*inv(x.54))
+        z     = x.53^inv((x.54*x.55))
+        z.1   = verify(signYltkB.35, <x.53^inv((x.55*x.56)), A.29>,
+                       pkLtkB.34)
+    
+    22. A     = A.29
+        Y     = x.53^(x.54*x.56)
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.55*inv(x.54))
+        z     = x.53^(x.55*x.56)
+        z.1   = verify(signYltkB.35, <x.53^(x.54*x.56), A.29>, pkLtkB.34)
+    
+    23. A     = A.29
+        Y     = x.53^(x.54*x.56*inv(x.55))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.55*inv(x.54))
+        z     = x.53^x.56
+        z.1   = verify(signYltkB.35, <x.53^(x.54*x.56*inv(x.55)), A.29>,
+                       pkLtkB.34)
+    
+    24. A     = A.29
+        Y     = x.53^(x.54*inv(x.55))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.55*x.56*inv(x.54))
+        z     = x.53^x.56
+        z.1   = verify(signYltkB.35, <x.53^(x.54*inv(x.55)), A.29>,
+                       pkLtkB.34)
+    
+    25. A     = A.29
+        Y     = x.53^(x.54*inv((x.55*x.56)))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.56*inv(x.54))
+        z     = x.53^inv(x.55)
+        z.1   = verify(signYltkB.35, <x.53^(x.54*inv((x.55*x.56))), A.29>,
+                       pkLtkB.34)
+    
+    26. A     = A.29
+        Y     = x.53^(x.55*x.56)
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = inv((x.54*x.55))
+        z     = x.53^(x.56*inv(x.54))
+        z.1   = verify(signYltkB.35, <x.53^(x.55*x.56), A.29>, pkLtkB.34)
+    
+    27. A     = A.29
+        Y     = x.53^(x.56*inv(x.54))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = inv((x.55*x.56))
+        z     = x.53^inv((x.54*x.55))
+        z.1   = verify(signYltkB.35, <x.53^(x.56*inv(x.54)), A.29>,
+                       pkLtkB.34)
+    
+    28. A     = A.29
+        Y     = x.53^(x.56*inv(x.54))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.54*x.55)
+        z     = x.53^(x.55*x.56)
+        z.1   = verify(signYltkB.35, <x.53^(x.56*inv(x.54)), A.29>,
+                       pkLtkB.34)
+    
+    29. A     = A.29
+        Y     = x.53^(x.56*inv(x.54))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = (x.54*inv((x.55*x.56)))
+        z     = x.53^inv(x.55)
+        z.1   = verify(signYltkB.35, <x.53^(x.56*inv(x.54)), A.29>,
+                       pkLtkB.34)
+    
+    30. A     = A.29
+        Y     = x.53^(x.56*inv(x.55))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = inv(x.54)
+        z     = x.53^(x.56*inv((x.54*x.55)))
+        z.1   = verify(signYltkB.35, <x.53^(x.56*inv(x.55)), A.29>,
+                       pkLtkB.34)
+    
+    31. A     = A.29
+        Y     = x.53^(x.56*inv((x.36*x.55)))
+        pkLtkB
+              = pkLtkB.34
+        signYltkB
+              = signYltkB.35
+        x     = x.36
+        z     = x.53^(x.56*inv(x.55))
+        z.1   = verify(signYltkB.35, <x.53^(x.56*inv((x.36*x.55))), A.29>,
+                       pkLtkB.34)
+    
+    32. A     = A.29
+        Y     = x.54^x.56
+        pkLtkB
+              = pk(x.55)
+        signYltkB
+              = sign(<x.54^x.56, A.29>, x.55)
+        x     = x.36
+        z     = x.54^(x.36*x.56)
+        z.1   = true
+    
+    33. A     = A.30
+        Y     = z.38^(x.57*inv(x.56))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<z.38^(x.57*inv(x.56)), A.30>, x.58)
+        x     = (x.56*inv(x.57))
+        z     = z.38
+        z.1   = true
+    
+    34. A     = A.30
+        Y     = x.54^inv((x.56*x.57))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.57*x.58*inv(x.55))
+        z     = x.54^(x.58*inv((x.55*x.56)))
+        z.1   = verify(signYltkB.36, <x.54^inv((x.56*x.57)), A.30>,
+                       pkLtkB.35)
+    
+    35. A     = A.30
+        Y     = x.54^(x.55*x.58*inv(x.56))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.56*x.57*inv(x.55))
+        z     = x.54^(x.57*x.58)
+        z.1   = verify(signYltkB.36, <x.54^(x.55*x.58*inv(x.56)), A.30>,
+                       pkLtkB.35)
+    
+    36. A     = A.30
+        Y     = x.54^(x.55*x.58*inv((x.56*x.57)))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.57*inv(x.55))
+        z     = x.54^(x.58*inv(x.56))
+        z.1   = verify(signYltkB.36,
+                       <x.54^(x.55*x.58*inv((x.56*x.57))), A.30>, pkLtkB.35)
+    
+    37. A     = A.30
+        Y     = x.54^(x.55*inv((x.56*x.57)))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.57*x.58*inv(x.55))
+        z     = x.54^(x.58*inv(x.56))
+        z.1   = verify(signYltkB.36, <x.54^(x.55*inv((x.56*x.57))), A.30>,
+                       pkLtkB.35)
+    
+    38. A     = A.30
+        Y     = x.54^(x.56*x.58)
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.57*inv((x.55*x.56)))
+        z     = x.54^(x.57*x.58*inv(x.55))
+        z.1   = verify(signYltkB.36, <x.54^(x.56*x.58), A.30>, pkLtkB.35)
+    
+    39. A     = A.30
+        Y     = x.54^(x.56*inv((x.57*x.58)))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.58*inv((x.55*x.56)))
+        z     = x.54^inv((x.55*x.57))
+        z.1   = verify(signYltkB.36, <x.54^(x.56*inv((x.57*x.58))), A.30>,
+                       pkLtkB.35)
+    
+    40. A     = A.30
+        Y     = x.54^(x.57*x.58*inv(x.55))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = inv((x.56*x.57))
+        z     = x.54^(x.58*inv((x.55*x.56)))
+        z.1   = verify(signYltkB.36, <x.54^(x.57*x.58*inv(x.55)), A.30>,
+                       pkLtkB.35)
+    
+    41. A     = A.30
+        Y     = x.54^(x.57*x.58*inv(x.55))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.55*inv((x.56*x.57)))
+        z     = x.54^(x.58*inv(x.56))
+        z.1   = verify(signYltkB.36, <x.54^(x.57*x.58*inv(x.55)), A.30>,
+                       pkLtkB.35)
+    
+    42. A     = A.30
+        Y     = x.54^(x.57*inv(x.55))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.55*x.58*inv((x.56*x.57)))
+        z     = x.54^(x.58*inv(x.56))
+        z.1   = verify(signYltkB.36, <x.54^(x.57*inv(x.55)), A.30>,
+                       pkLtkB.35)
+    
+    43. A     = A.30
+        Y     = x.54^(x.57*inv(x.55))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.58*inv((x.56*x.57)))
+        z     = x.54^(x.58*inv((x.55*x.56)))
+        z.1   = verify(signYltkB.36, <x.54^(x.57*inv(x.55)), A.30>,
+                       pkLtkB.35)
+    
+    44. A     = A.30
+        Y     = x.54^(x.58*inv(x.56))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.57*inv(x.55))
+        z     = x.54^(x.57*x.58*inv((x.55*x.56)))
+        z.1   = verify(signYltkB.36, <x.54^(x.58*inv(x.56)), A.30>,
+                       pkLtkB.35)
+    
+    45. A     = A.30
+        Y     = x.54^(x.58*inv((x.55*x.56)))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.56*x.57)
+        z     = x.54^(x.57*x.58*inv(x.55))
+        z.1   = verify(signYltkB.36, <x.54^(x.58*inv((x.55*x.56))), A.30>,
+                       pkLtkB.35)
+    
+    46. A     = A.30
+        Y     = x.54^(x.58*inv((x.56*x.57)))
+        pkLtkB
+              = pkLtkB.35
+        signYltkB
+              = signYltkB.36
+        x     = (x.57*inv(x.55))
+        z     = x.54^(x.58*inv((x.55*x.56)))
+        z.1   = verify(signYltkB.36, <x.54^(x.58*inv((x.56*x.57))), A.30>,
+                       pkLtkB.35)
+    
+    47. A     = A.30
+        Y     = x.55^x.56
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.55^x.56, A.30>, x.57)
+        x     = (x.58*inv(x.56))
+        z     = x.55^x.58
+        z.1   = true
+    
+    48. A     = A.30
+        Y     = x.55^x.57
+        pkLtkB
+              = pk(x.56)
+        signYltkB
+              = sign(<x.55^x.57, A.30>, x.56)
+        x     = inv((x.57*x.58))
+        z     = x.55^inv(x.58)
+        z.1   = true
+    
+    49. A     = A.30
+        Y     = x.55^inv(x.56)
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.55^inv(x.56), A.30>, x.57)
+        x     = (x.56*x.58)
+        z     = x.55^x.58
+        z.1   = true
+    
+    50. A     = A.30
+        Y     = x.55^inv(x.56)
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.55^inv(x.56), A.30>, x.58)
+        x     = inv(x.57)
+        z     = x.55^inv((x.56*x.57))
+        z.1   = true
+    
+    51. A     = A.30
+        Y     = x.55^inv((x.37*x.58))
+        pkLtkB
+              = pk(x.56)
+        signYltkB
+              = sign(<x.55^inv((x.37*x.58)), A.30>, x.56)
+        x     = x.37
+        z     = x.55^inv(x.58)
+        z.1   = true
+    
+    52. A     = A.30
+        Y     = x.55^(x.56*x.58)
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.55^(x.56*x.58), A.30>, x.57)
+        x     = inv(x.56)
+        z     = x.55^x.58
+        z.1   = true
+    
+    53. A     = A.30
+        Y     = x.55^(x.58*inv(x.37))
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.55^(x.58*inv(x.37)), A.30>, x.57)
+        x     = x.37
+        z     = x.55^x.58
+        z.1   = true
+    
+    54. A     = A.31
+        Y     = x.55^(x.56*x.60*inv((x.57*x.58)))
+        pkLtkB
+              = pkLtkB.36
+        signYltkB
+              = signYltkB.37
+        x     = (x.58*x.59*inv(x.56))
+        z     = x.55^(x.59*x.60*inv(x.57))
+        z.1   = verify(signYltkB.37,
+                       <x.55^(x.56*x.60*inv((x.57*x.58))), A.31>, pkLtkB.36)
+    
+    55. A     = A.31
+        Y     = x.55^(x.57*x.60*inv((x.58*x.59)))
+        pkLtkB
+              = pkLtkB.36
+        signYltkB
+              = signYltkB.37
+        x     = (x.59*inv((x.56*x.57)))
+        z     = x.55^(x.60*inv((x.56*x.58)))
+        z.1   = verify(signYltkB.37,
+                       <x.55^(x.57*x.60*inv((x.58*x.59))), A.31>, pkLtkB.36)
+    
+    56. A     = A.31
+        Y     = x.55^(x.57*inv((x.58*x.59)))
+        pkLtkB
+              = pkLtkB.36
+        signYltkB
+              = signYltkB.37
+        x     = (x.59*x.60*inv((x.56*x.57)))
+        z     = x.55^(x.60*inv((x.56*x.58)))
+        z.1   = verify(signYltkB.37, <x.55^(x.57*inv((x.58*x.59))), A.31>,
+                       pkLtkB.36)
+    
+    57. A     = A.31
+        Y     = x.55^(x.58*x.60*inv(x.56))
+        pkLtkB
+              = pkLtkB.36
+        signYltkB
+              = signYltkB.37
+        x     = (x.56*x.59*inv((x.57*x.58)))
+        z     = x.55^(x.59*x.60*inv(x.57))
+        z.1   = verify(signYltkB.37, <x.55^(x.58*x.60*inv(x.56)), A.31>,
+                       pkLtkB.36)
+    
+    58. A     = A.31
+        Y     = x.55^(x.58*x.60*inv(x.56))
+        pkLtkB
+              = pkLtkB.36
+        signYltkB
+              = signYltkB.37
+        x     = (x.59*inv((x.57*x.58)))
+        z     = x.55^(x.59*x.60*inv((x.56*x.57)))
+        z.1   = verify(signYltkB.37, <x.55^(x.58*x.60*inv(x.56)), A.31>,
+                       pkLtkB.36)
+    
+    59. A     = A.31
+        Y     = x.55^(x.60*inv((x.57*x.58)))
+        pkLtkB
+              = pkLtkB.36
+        signYltkB
+              = signYltkB.37
+        x     = (x.58*x.59*inv(x.56))
+        z     = x.55^(x.59*x.60*inv((x.56*x.57)))
+        z.1   = verify(signYltkB.37, <x.55^(x.60*inv((x.57*x.58))), A.31>,
+                       pkLtkB.36)
+    
+    60. A     = A.31
+        Y     = x.56^x.58
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.56^x.58, A.31>, x.57)
+        x     = (x.60*inv((x.58*x.59)))
+        z     = x.56^(x.60*inv(x.59))
+        z.1   = true
+    
+    61. A     = A.31
+        Y     = x.56^inv(x.57)
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.56^inv(x.57), A.31>, x.59)
+        x     = (x.60*inv(x.58))
+        z     = x.56^(x.60*inv((x.57*x.58)))
+        z.1   = true
+    
+    62. A     = A.31
+        Y     = x.56^inv((x.58*x.59))
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.56^inv((x.58*x.59)), A.31>, x.57)
+        x     = (x.59*x.60)
+        z     = x.56^(x.60*inv(x.58))
+        z.1   = true
+    
+    63. A     = A.31
+        Y     = x.56^inv((x.59*x.60))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.56^inv((x.59*x.60)), A.31>, x.58)
+        x     = (x.60*inv(x.57))
+        z     = x.56^inv((x.57*x.59))
+        z.1   = true
+    
+    64. A     = A.31
+        Y     = x.56^(x.57*x.59)
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.56^(x.57*x.59), A.31>, x.58)
+        x     = (x.60*inv(x.57))
+        z     = x.56^(x.59*x.60)
+        z.1   = true
+    
+    65. A     = A.31
+        Y     = x.56^(x.57*inv((x.59*x.60)))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.56^(x.57*inv((x.59*x.60))), A.31>, x.58)
+        x     = (x.60*inv(x.57))
+        z     = x.56^inv(x.59)
+        z.1   = true
+    
+    66. A     = A.31
+        Y     = x.56^(x.58*x.60*inv(x.57))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.56^(x.58*x.60*inv(x.57)), A.31>, x.59)
+        x     = (x.57*inv(x.58))
+        z     = x.56^x.60
+        z.1   = true
+    
+    67. A     = A.31
+        Y     = x.56^(x.58*inv(x.57))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.56^(x.58*inv(x.57)), A.31>, x.59)
+        x     = (x.57*x.60*inv(x.58))
+        z     = x.56^x.60
+        z.1   = true
+    
+    68. A     = A.31
+        Y     = x.56^(x.59*x.60)
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.56^(x.59*x.60), A.31>, x.57)
+        x     = inv((x.58*x.59))
+        z     = x.56^(x.60*inv(x.58))
+        z.1   = true
+    
+    69. A     = A.31
+        Y     = x.56^(x.59*inv(x.57))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.56^(x.59*inv(x.57)), A.31>, x.58)
+        x     = (x.57*x.60)
+        z     = x.56^(x.59*x.60)
+        z.1   = true
+    
+    70. A     = A.31
+        Y     = x.56^(x.60*inv(x.57))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.56^(x.60*inv(x.57)), A.31>, x.58)
+        x     = inv((x.59*x.60))
+        z     = x.56^inv((x.57*x.59))
+        z.1   = true
+    
+    71. A     = A.31
+        Y     = x.56^(x.60*inv(x.57))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.56^(x.60*inv(x.57)), A.31>, x.58)
+        x     = (x.57*inv((x.59*x.60)))
+        z     = x.56^inv(x.59)
+        z.1   = true
+    
+    72. A     = A.31
+        Y     = x.56^(x.60*inv(x.58))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.56^(x.60*inv(x.58)), A.31>, x.59)
+        x     = inv(x.57)
+        z     = x.56^(x.60*inv((x.57*x.58)))
+        z.1   = true
+    
+    73. A     = A.31
+        Y     = x.56^(x.60*inv((x.38*x.59)))
+        pkLtkB
+              = pk(x.57)
+        signYltkB
+              = sign(<x.56^(x.60*inv((x.38*x.59))), A.31>, x.57)
+        x     = x.38
+        z     = x.56^(x.60*inv(x.59))
+        z.1   = true
+    
+    74. A     = A.32
+        Y     = x.56^(x.58*x.62*inv((x.59*x.60)))
+        pkLtkB
+              = pkLtkB.37
+        signYltkB
+              = signYltkB.38
+        x     = (x.60*x.61*inv((x.57*x.58)))
+        z     = x.56^(x.61*x.62*inv((x.57*x.59)))
+        z.1   = verify(signYltkB.38,
+                       <x.56^(x.58*x.62*inv((x.59*x.60))), A.32>, pkLtkB.37)
+    
+    75. A     = A.32
+        Y     = x.57^inv((x.60*x.61))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^inv((x.60*x.61)), A.32>, x.59)
+        x     = (x.61*x.62*inv(x.58))
+        z     = x.57^(x.62*inv((x.58*x.60)))
+        z.1   = true
+    
+    76. A     = A.32
+        Y     = x.57^(x.58*x.62*inv((x.60*x.61)))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.58*x.62*inv((x.60*x.61))), A.32>, x.59)
+        x     = (x.61*inv(x.58))
+        z     = x.57^(x.62*inv(x.60))
+        z.1   = true
+    
+    77. A     = A.32
+        Y     = x.57^(x.58*inv((x.60*x.61)))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.58*inv((x.60*x.61))), A.32>, x.59)
+        x     = (x.61*x.62*inv(x.58))
+        z     = x.57^(x.62*inv(x.60))
+        z.1   = true
+    
+    78. A     = A.32
+        Y     = x.57^(x.59*x.61*inv(x.58))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.57^(x.59*x.61*inv(x.58)), A.32>, x.60)
+        x     = (x.58*x.62*inv(x.59))
+        z     = x.57^(x.61*x.62)
+        z.1   = true
+    
+    79. A     = A.32
+        Y     = x.57^(x.60*x.61)
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.57^(x.60*x.61), A.32>, x.58)
+        x     = (x.62*inv((x.59*x.60)))
+        z     = x.57^(x.61*x.62*inv(x.59))
+        z.1   = true
+    
+    80. A     = A.32
+        Y     = x.57^(x.61*x.62*inv(x.58))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.61*x.62*inv(x.58)), A.32>, x.59)
+        x     = inv((x.60*x.61))
+        z     = x.57^(x.62*inv((x.58*x.60)))
+        z.1   = true
+    
+    81. A     = A.32
+        Y     = x.57^(x.61*x.62*inv(x.58))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.61*x.62*inv(x.58)), A.32>, x.59)
+        x     = (x.58*inv((x.60*x.61)))
+        z     = x.57^(x.62*inv(x.60))
+        z.1   = true
+    
+    82. A     = A.32
+        Y     = x.57^(x.61*inv(x.58))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.61*inv(x.58)), A.32>, x.59)
+        x     = (x.58*x.62*inv((x.60*x.61)))
+        z     = x.57^(x.62*inv(x.60))
+        z.1   = true
+    
+    83. A     = A.32
+        Y     = x.57^(x.61*inv(x.58))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.61*inv(x.58)), A.32>, x.59)
+        x     = (x.62*inv((x.60*x.61)))
+        z     = x.57^(x.62*inv((x.58*x.60)))
+        z.1   = true
+    
+    84. A     = A.32
+        Y     = x.57^(x.61*inv(x.58))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.57^(x.61*inv(x.58)), A.32>, x.60)
+        x     = (x.62*inv(x.59))
+        z     = x.57^(x.61*x.62*inv((x.58*x.59)))
+        z.1   = true
+    
+    85. A     = A.32
+        Y     = x.57^(x.61*inv((x.59*x.60)))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.57^(x.61*inv((x.59*x.60))), A.32>, x.58)
+        x     = (x.60*x.62)
+        z     = x.57^(x.61*x.62*inv(x.59))
+        z.1   = true
+    
+    86. A     = A.32
+        Y     = x.57^(x.62*inv((x.59*x.60)))
+        pkLtkB
+              = pk(x.58)
+        signYltkB
+              = sign(<x.57^(x.62*inv((x.59*x.60))), A.32>, x.58)
+        x     = (x.60*inv((x.61*x.62)))
+        z     = x.57^inv((x.59*x.61))
+        z.1   = true
+    
+    87. A     = A.32
+        Y     = x.57^(x.62*inv((x.60*x.61)))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.57^(x.62*inv((x.60*x.61))), A.32>, x.59)
+        x     = (x.61*inv(x.58))
+        z     = x.57^(x.62*inv((x.58*x.60)))
+        z.1   = true
+    
+    88. A     = A.33
+        Y     = x.58^(x.59*x.63*inv((x.61*x.62)))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.58^(x.59*x.63*inv((x.61*x.62))), A.33>, x.60)
+        x     = (x.62*x.64*inv(x.59))
+        z     = x.58^(x.63*x.64*inv(x.61))
+        z.1   = true
+    
+    89. A     = A.33
+        Y     = x.58^(x.62*x.63*inv(x.59))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.58^(x.62*x.63*inv(x.59)), A.33>, x.60)
+        x     = (x.59*x.64*inv((x.61*x.62)))
+        z     = x.58^(x.63*x.64*inv(x.61))
+        z.1   = true
+    
+    90. A     = A.33
+        Y     = x.58^(x.62*x.63*inv(x.59))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.58^(x.62*x.63*inv(x.59)), A.33>, x.60)
+        x     = (x.64*inv((x.61*x.62)))
+        z     = x.58^(x.63*x.64*inv((x.59*x.61)))
+        z.1   = true
+    
+    91. A     = A.33
+        Y     = x.58^(x.63*x.64*inv((x.60*x.61)))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.58^(x.63*x.64*inv((x.60*x.61))), A.33>, x.59)
+        x     = (x.61*inv((x.62*x.63)))
+        z     = x.58^(x.64*inv((x.60*x.62)))
+        z.1   = true
+    
+    92. A     = A.33
+        Y     = x.58^(x.63*inv((x.60*x.61)))
+        pkLtkB
+              = pk(x.59)
+        signYltkB
+              = sign(<x.58^(x.63*inv((x.60*x.61))), A.33>, x.59)
+        x     = (x.61*x.64*inv((x.62*x.63)))
+        z     = x.58^(x.64*inv((x.60*x.62)))
+        z.1   = true
+    
+    93. A     = A.33
+        Y     = x.58^(x.63*inv((x.61*x.62)))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.58^(x.63*inv((x.61*x.62))), A.33>, x.60)
+        x     = (x.62*x.64*inv(x.59))
+        z     = x.58^(x.63*x.64*inv((x.59*x.61)))
+        z.1   = true
+    
+    94. A     = A.34
+        Y     = x.59^(x.64*x.65*inv((x.61*x.62)))
+        pkLtkB
+              = pk(x.60)
+        signYltkB
+              = sign(<x.59^(x.64*x.65*inv((x.61*x.62))), A.34>, x.60)
+        x     = (x.62*x.66*inv((x.63*x.64)))
+        z     = x.59^(x.65*x.66*inv((x.61*x.63)))
+        z.1   = true
+  */
+
+restriction IsTrueMustHold:
+  "∀ x #i. (IsTrue( x ) @ #i) ⇒ (x = true)"
+  // safety formula
+
+restriction OnlyOneKeyPair:
+  "∀ A #i #j.
+    ((CreateKey( A ) @ #i) ∧ (CreateKey( A ) @ #j)) ⇒ (#i = #j)"
+  // safety formula
+
+lemma executable:
+  exists-trace
+  "∃ #i #j.
+    (((((((FinishI( ) @ #i) ∧ (FinishR( ) @ #j)) ∧
+         (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ (¬(x = y)))) ∧
+        (¬(∃ A #j.1. Reveal( A ) @ #j.1))) ∧
+       (∀ A #i.1 #j.1.
+         ((CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j.1)) ⇒
+         (#i.1 = #j.1))) ∧
+      (∀ #j1 #j2.
+        ((Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+     (∀ #j1 #j2.
+       ((Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+    (∃ A B #i.1 #j.1.
+      ((InitA( A ) @ #i.1) ∧ (InitB( B ) @ #j.1)) ∧ (¬(A = B)))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i #j.
+  (FinishI( ) @ #i) ∧ (FinishR( ) @ #j)
+ ∧
+  (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ ¬(x = y)) ∧
+  (∀ A #j.1. (Reveal( A ) @ #j.1) ⇒ ⊥) ∧
+  (∀ A #i.1 #j.1.
+    (CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j.1) ⇒ #i.1 = #j.1) ∧
+  (∀ #j1 #j2. (Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∀ #j1 #j2. (Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∃ A B #i.1 #j.1.
+    (InitA( A ) @ #i.1) ∧ (InitB( B ) @ #j.1) ∧ ¬(A = B))"
+*/
+simplify
+solve( St_A_2( A, id, B, ltkA, pk(x), x.1 ) ▶₀ #i )
+  case I_1
+  solve( St_B_2( B, id.1, A.2, ltkB, pkLtkA, X ) ▶₀ #j )
+    case R_1
+    solve( !KU( sign(<Y, $A>, ~ltkA.1) ) @ #vk.3 )
+      case R_2
+      solve( !KU( sign(<X, $A.1>, ~ltkA) ) @ #vk.8 )
+        case I_1
+        solve( !KU( pk(~ltkB) ) @ #vk.5 )
+          case R_2
+          solve( !KU( pk(~ltkA) ) @ #vk.9 )
+            case I_1
+            solve( !KU( 'g'^~y ) @ #vk.8 )
+              case R_2
+              solve( !KU( 'g'^~x ) @ #vk.9 )
+                case I_1
+                SOLVED // trace found
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma attacker_can_be_R:
+  exists-trace
+  "∃ #i.
+    ((((((FinishI( ) @ #i) ∧
+         (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ (¬(x = y)))) ∧
+        (∀ #i.1 #j.
+          ((Init_A( ) @ #i.1) ∧ (Init_A( ) @ #j)) ⇒ (#i.1 = #j))) ∧
+       (¬(∃ #i.1. Init_B( ) @ #i.1))) ∧
+      (∃ A E #i1 #k1 #k2.
+        ((CreateKey( A ) @ #i1) ∧ (CreateKey( E ) @ #k1)) ∧
+        (Reveal( E ) @ #k2))) ∧
+     (∀ A #i.1 #j.
+       ((CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j)) ⇒ (#i.1 = #j))) ∧
+    (∀ A B #i.1 #j.
+      ((Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j)) ⇒ (#i.1 = #j))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i.
+  (FinishI( ) @ #i)
+ ∧
+  (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ ¬(x = y)) ∧
+  (∀ #i.1 #j. (Init_A( ) @ #i.1) ∧ (Init_A( ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ #i.1. (Init_B( ) @ #i.1) ⇒ ⊥) ∧
+  (∃ A E #i1 #k1 #k2.
+    (CreateKey( A ) @ #i1) ∧
+    (CreateKey( E ) @ #k1) ∧
+    (Reveal( E ) @ #k2)) ∧
+  (∀ A #i.1 #j.
+    (CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ A B #i.1 #j.
+    (Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j) ⇒ #i.1 = #j)"
+*/
+simplify
+solve( St_A_2( A, id, B, ltkA, pk(x), x.1 ) ▶₀ #i )
+  case I_1
+  solve( !Ltk( $A.3, ltkA.4 ) ▶₀ #k2 )
+    case Register_pk
+    solve( !KU( sign(<Y, $A>, ~ltkA.1) ) @ #vk.3 )
+      case c_sign
+      solve( !KU( ~ltkA.1 ) @ #vk.6 )
+        case Reveal_ltk
+        solve( splitEqs(0) )
+          case split_case_1
+          solve( !KU( pk(~ltkA.1) ) @ #vk.6 )
+            case Register_pk
+            SOLVED // trace found
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma attacker_can_be_I:
+  exists-trace
+  "∃ #i.
+    ((((((FinishR( ) @ #i) ∧
+         (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ (¬(x = y)))) ∧
+        (∀ #i.1 #j.
+          ((Init_B( ) @ #i.1) ∧ (Init_B( ) @ #j)) ⇒ (#i.1 = #j))) ∧
+       (¬(∃ #i.1. Init_A( ) @ #i.1))) ∧
+      (∃ B E #i1 #k1 #k2.
+        ((CreateKey( B ) @ #i1) ∧ (CreateKey( E ) @ #k1)) ∧
+        (Reveal( E ) @ #k2))) ∧
+     (∀ A #i.1 #j.
+       ((CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j)) ⇒ (#i.1 = #j))) ∧
+    (∀ A B #i.1 #j.
+      ((Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j)) ⇒ (#i.1 = #j))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i.
+  (FinishR( ) @ #i)
+ ∧
+  (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ ¬(x = y)) ∧
+  (∀ #i.1 #j. (Init_B( ) @ #i.1) ∧ (Init_B( ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ #i.1. (Init_A( ) @ #i.1) ⇒ ⊥) ∧
+  (∃ B E #i1 #k1 #k2.
+    (CreateKey( B ) @ #i1) ∧
+    (CreateKey( E ) @ #k1) ∧
+    (Reveal( E ) @ #k2)) ∧
+  (∀ A #i.1 #j.
+    (CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ A B #i.1 #j.
+    (Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j) ⇒ #i.1 = #j)"
+*/
+simplify
+solve( St_B_2( B, id, A, ltkB, pkLtkA, X ) ▶₀ #i )
+  case R_1
+  solve( !Ltk( $A.3, ltkA.3 ) ▶₀ #k2 )
+    case Register_pk
+    solve( !KU( sign(<X, $A>, ~ltkA) ) @ #vk.3 )
+      case c_sign
+      solve( !KU( ~ltkA ) @ #vk.6 )
+        case Reveal_ltk
+        solve( splitEqs(0) )
+          case split_case_1
+          solve( !KU( pk(~ltkA) ) @ #vk.6 )
+            case Register_pk
+            SOLVED // trace found
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma noninjectiveagreementINITIATOR:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'I', 'R', t> ) @ #i) ⇒
+    ((∃ #j. Running( b, a, <'I', 'R', t> ) @ #j) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'I', 'R', t> ) @ #i)
+ ∧
+  (∀ #j. (Running( b, a, <'I', 'R', t> ) @ #j) ⇒ ⊥) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'I', 'R', t> ) @ #i )
+  case I_2
+  solve( St_A_2( a, id, b, ltkA, pk(x), x.1 ) ▶₀ #i )
+    case I_1
+    solve( !KU( sign(<Y, $A>, ~ltkA.1) ) @ #vk.3 )
+      case I_1
+      solve( !KU( pk(~ltkA.1) ) @ #vk.4 )
+        case I_1
+        by sorry
+      next
+        case R_2
+        by sorry
+      next
+        case Register_pk
+        solve( !KU( 'g'^~x.1 ) @ #vk.4 )
+          case I_1
+          SOLVED // trace found
+        next
+          case c_exp
+          by sorry
+        qed
+      next
+        case c_pk
+        by sorry
+      qed
+    next
+      case R_2
+      by sorry
+    next
+      case c_sign
+      by sorry
+    qed
+  qed
+qed
+
+lemma injectiveagreementINITIATOR:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'I', 'R', t> ) @ #i) ⇒
+    ((∃ #j.
+       (Running( b, a, <'I', 'R', t> ) @ #j) ∧
+       (¬(∃ a2 b2 #i2.
+           (Commit( a2, b2, <'I', 'R', t> ) @ #i2) ∧ (¬(#i2 = #i))))) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'I', 'R', t> ) @ #i)
+ ∧
+  (∀ #j.
+    (Running( b, a, <'I', 'R', t> ) @ #j)
+   ⇒
+    ∃ a2 b2 #i2.
+     (Commit( a2, b2, <'I', 'R', t> ) @ #i2) ∧ ¬(#i2 = #i)) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'I', 'R', t> ) @ #i )
+  case I_2
+  solve( St_A_2( a, id, b, ltkA, pk(x), x.1 ) ▶₀ #i )
+    case I_1
+    solve( !KU( sign(<Y, $A>, ~ltkA.1) ) @ #vk.3 )
+      case I_1
+      solve( !KU( pk(~ltkA.1) ) @ #vk.4 )
+        case I_1
+        by sorry
+      next
+        case R_2
+        by sorry
+      next
+        case Register_pk
+        solve( !KU( 'g'^~x.1 ) @ #vk.4 )
+          case I_1
+          SOLVED // trace found
+        next
+          case c_exp
+          by sorry
+        qed
+      next
+        case c_pk
+        by sorry
+      qed
+    next
+      case R_2
+      by sorry
+    next
+      case c_sign
+      by sorry
+    qed
+  qed
+qed
+
+lemma noninjectiveagreementRESPONDER:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'R', 'I', t> ) @ #i) ⇒
+    ((∃ #j. Running( b, a, <'R', 'I', t> ) @ #j) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'R', 'I', t> ) @ #i)
+ ∧
+  (∀ #j. (Running( b, a, <'R', 'I', t> ) @ #j) ⇒ ⊥) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'R', 'I', t> ) @ #i )
+  case R_2
+  solve( St_B_2( a, id, b, ltkB, pkLtkA, X ) ▶₀ #i )
+    case R_1
+    solve( !KU( sign(<X, $A>, ~ltkA) ) @ #vk.3 )
+      case I_1
+      solve( !KU( pk(~ltkA) ) @ #vk.4 )
+        case I_1
+        by sorry
+      next
+        case R_2
+        by sorry
+      next
+        case Register_pk
+        solve( !KU( 'g'^~x ) @ #vk.4 )
+          case I_1
+          SOLVED // trace found
+        next
+          case c_exp
+          by sorry
+        qed
+      next
+        case c_pk
+        by sorry
+      qed
+    next
+      case R_2
+      by sorry /* removed */
+    next
+      case c_sign
+      solve( !KU( ~ltkA ) @ #vk.6 )
+        case Reveal_ltk
+        by sorry /* bound 5 hit */
+      qed
+    qed
+  qed
+qed
+
+lemma injectiveagreementRESPONDER:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'R', 'I', t> ) @ #i) ⇒
+    ((∃ #j.
+       (Running( b, a, <'R', 'I', t> ) @ #j) ∧
+       (¬(∃ a2 b2 #i2.
+           (Commit( a2, b2, <'R', 'I', t> ) @ #i2) ∧ (¬(#i2 = #i))))) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'R', 'I', t> ) @ #i)
+ ∧
+  (∀ #j.
+    (Running( b, a, <'R', 'I', t> ) @ #j)
+   ⇒
+    ∃ a2 b2 #i2.
+     (Commit( a2, b2, <'R', 'I', t> ) @ #i2) ∧ ¬(#i2 = #i)) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'R', 'I', t> ) @ #i )
+  case R_2
+  solve( St_B_2( a, id, b, ltkB, pkLtkA, X ) ▶₀ #i )
+    case R_1
+    solve( !KU( sign(<X, $A>, ~ltkA) ) @ #vk.3 )
+      case I_1
+      solve( !KU( pk(~ltkA) ) @ #vk.4 )
+        case I_1
+        by sorry
+      next
+        case R_2
+        by sorry
+      next
+        case Register_pk
+        solve( !KU( 'g'^~x ) @ #vk.4 )
+          case I_1
+          SOLVED // trace found
+        next
+          case c_exp
+          by sorry
+        qed
+      next
+        case c_pk
+        by sorry
+      qed
+    next
+      case R_2
+      by sorry
+    next
+      case c_sign
+      by sorry
+    qed
+  qed
+qed
+
+/* All well-formedness checks were successful. */
+
+end
