@@ -1,0 +1,106 @@
+theory P5ab
+begin
+
+builtins: signing, hashing, symmetric-encryption, diffie-hellman
+
+// Set up symmetric keys
+rule SetupSymmetricKey:
+  [ Fr(~k) ] --[ InitKey() ]-> [ !Ltk($A, $B, ~k) ]
+
+rule Reveal_ltk:
+  [ !Ltk(A, B, k) ] --[ Reveal(A), Reveal(B) ]-> [ Out(k) ]
+
+// user-defined function
+functions:
+  map/2
+  
+/*
+  We model the following protocol
+
+  1. A -> B: {g^x}_{h(K(A,B))}, p, {s}_{h(K(A,B))}
+  2. A <- B: {g^y}_{h(K(B,A))}
+  3. A -> B: 
+ */
+
+rule Init_A:
+  [ Fr(~id)
+  , !Ltk(I, R, ltkIR)
+  , !Ltk(R, I, ltkRI)
+  ]
+--[ Init_A()
+  , Create_A(I, ~id) 
+  ]->
+  [ St_A_1(I, ~id, R, ltkIR, ltkRI)
+  ]
+
+rule Init_B:
+  [ Fr(~id)
+  , !Ltk(I, R, ltkIR)
+  , !Ltk(R, I, ltkRI)
+  ]
+--[ Init_B()
+  , Create_B(R, ~id)
+  ]->
+  [ St_B_1(R, ~id, I, ltkIR, ltkRI)
+  ]
+
+
+
+// Own lemma
+lemma executable:
+  exists-trace
+    "Ex #i #j. FinishI()@i & FinishR()@j 
+   & not (Ex A #j. Reveal(A)@j)
+   & (All #j1 #j2 #j3. InitKey()@j1 & InitKey()@j2 & InitKey()@j3 
+          ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3) 
+   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
+   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
+   & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
+   "
+
+
+// Given, immutable lemmas
+
+lemma secrecy:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma secrecy_PFS:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
+
+
+lemma noninjectiveagreementINITIATOR:
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementINITIATOR:
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
+        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t>) @i2
+                           & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+
+lemma noninjectiveagreementRESPONDER:
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementRESPONDER:
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
+              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t>) @i2
+                                 & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+end
