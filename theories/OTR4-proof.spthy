@@ -1,0 +1,823 @@
+theory OTR4 begin
+
+// Function signature and definition of the equational theory E
+
+builtins: diffie-hellman
+functions: fst/1, hash/1, mac/2, pair/2, pk/1, sign/2, snd/1,
+           true/0, verify/3
+equations:
+    fst(<x.1, x.2>) = x.1,
+    snd(<x.1, x.2>) = x.2,
+    verify(sign(x.1, x.2), x.1, pk(x.2)) = true
+
+rule (modulo E) Register_pk:
+   [ Fr( ~ltkA ) ]
+  --[ CreateKey( $A ) ]->
+   [ !Ltk( $A, ~ltkA ), !Pk( $A, pk(~ltkA) ), Out( pk(~ltkA) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Reveal_ltk:
+   [ !Ltk( A, ltkA ) ] --[ Reveal( A ) ]-> [ Out( ltkA ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Init_A:
+   [ Fr( ~id ), !Pk( A, pk(~ltkA) ), !Pk( B, pkLtkB ) ]
+  --[ Init_A( ), InitA( A ), InitAB( A, B ), NotEq( A, B ) ]->
+   [ St_A_1( A, ~id, B, ~ltkA, pkLtkB ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Init_B:
+   [ Fr( ~id ), !Pk( B, pk(~ltkB) ), !Pk( A, pkLtkA ) ]
+  --[ Init_B( ), InitB( B ), InitBA( B, A ), NotEq( A, B ) ]->
+   [ St_B_1( B, ~id, A, ~ltkB, pkLtkA ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) I_1:
+   [ St_A_1( A, id, B, ltkA, pkLtkB ), Fr( ~x ) ]
+  --[ Send( A, 'g'^~x ) ]->
+   [
+   St_A_2( A, id, B, ltkA, pkLtkB, ~x, 'g'^~x ), Out( 'g'^~x ),
+   Secret( A, ~x ), Honest( A )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) R_1:
+   [ St_B_1( B, id, A, ltkB, pkLtkA ), In( gX ) ]
+  --[ Receive( B, gX ) ]->
+   [ St_B_2( B, id, A, ltkB, pkLtkA, gX ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) R_2:
+   [ St_B_2( B, id, A, ltkB, pkLtkA, gX ), Fr( ~y ) ]
+  --[
+  Send( B, 'g'^~y ), Secret( B, ~y ), Secret( B, gX^~y ),
+  Honest( B ), Honest( A ), Running( B, A, <'I', 'R', gX^~y> )
+  ]->
+   [
+   St_B_3( B, id, A, ltkB, pkLtkA, ~y, gX, 'g'^~y, gX^~y ),
+   Out( 'g'^~y )
+   ]
+
+  /*
+  rule (modulo AC) R_2:
+     [ St_B_2( B, id, A, ltkB, pkLtkA, gX ), Fr( ~y ) ]
+    --[
+    Send( B, 'g'^~y ), Secret( B, ~y ), Secret( B, z ), Honest( B ),
+    Honest( A ), Running( B, A, <'I', 'R', z> )
+    ]->
+     [
+     St_B_3( B, id, A, ltkB, pkLtkA, ~y, gX, 'g'^~y, z ), Out( 'g'^~y )
+     ]
+    variants (modulo AC)
+    1. ~y    = ~y.14
+       gX    = gX.17
+       z     = gX.17^~y.14
+    
+    2. ~y    = ~y.19
+       gX    = z.27^inv(~y.19)
+       z     = z.27
+    
+    3. ~y    = ~y.78
+       gX    = x.153^x.154
+       z     = x.153^(~y.78*x.154)
+    
+    4. ~y    = ~y.79
+       gX    = x.155^inv((~y.79*x.156))
+       z     = x.155^inv(x.156)
+    
+    5. ~y    = ~y.79
+       gX    = x.155^(x.156*inv(~y.79))
+       z     = x.155^x.156
+    
+    6. ~y    = ~y.80
+       gX    = x.156^(x.158*inv((~y.80*x.157)))
+       z     = x.156^(x.158*inv(x.157))
+  */
+
+rule (modulo E) I_2:
+   [ St_A_2( A, id, B, ltkA, pkLtkB, x, gX ), In( gY ) ]
+  --[
+  Receive( A, gY ), Running( A, B, <'R', 'I', gY^x> ), Honest( A ),
+  Honest( B ), Secret( A, gY^x )
+  ]->
+   [ St_A_3( A, id, B, ltkA, pkLtkB, x, gX, gY, gY^x ) ]
+
+  /*
+  rule (modulo AC) I_2:
+     [ St_A_2( A, id, B, ltkA, pkLtkB, x, gX ), In( gY ) ]
+    --[
+    Receive( A, gY ), Running( A, B, <'R', 'I', z> ), Honest( A ),
+    Honest( B ), Secret( A, z )
+    ]->
+     [ St_A_3( A, id, B, ltkA, pkLtkB, x, gX, gY, z ) ]
+    variants (modulo AC)
+     1. gY    = gY.11
+        x     = one
+        z     = gY.11
+    
+     2. gY    = gY.15
+        x     = x.19
+        z     = gY.15^x.19
+    
+     3. gY    = x.13^x.14
+        x     = inv((x.14*x.15))
+        z     = x.13^inv(x.15)
+    
+     4. gY    = x.13^x.14
+        x     = (x.15*inv(x.14))
+        z     = x.13^x.15
+    
+     5. gY    = x.13^inv(x.14)
+        x     = (x.14*x.15)
+        z     = x.13^x.15
+    
+     6. gY    = x.13^inv(x.15)
+        x     = inv(x.14)
+        z     = x.13^inv((x.14*x.15))
+    
+     7. gY    = x.13^(x.14*x.15)
+        x     = inv(x.14)
+        z     = x.13^x.15
+    
+     8. gY    = z.13^inv(x.12)
+        x     = x.12
+        z     = z.13
+    
+     9. gY    = x.14^x.15
+        x     = (x.17*inv((x.15*x.16)))
+        z     = x.14^(x.17*inv(x.16))
+    
+    10. gY    = x.14^inv(x.15)
+        x     = (x.17*inv(x.16))
+        z     = x.14^(x.17*inv((x.15*x.16)))
+    
+    11. gY    = x.14^inv((x.15*x.16))
+        x     = (x.16*x.17)
+        z     = x.14^(x.17*inv(x.15))
+    
+    12. gY    = x.14^inv((x.16*x.17))
+        x     = (x.17*inv(x.15))
+        z     = x.14^inv((x.15*x.16))
+    
+    13. gY    = x.14^(x.15*x.17)
+        x     = (x.16*inv(x.15))
+        z     = x.14^(x.16*x.17)
+    
+    14. gY    = x.14^(x.15*x.17*inv(x.16))
+        x     = (x.16*inv(x.15))
+        z     = x.14^x.17
+    
+    15. gY    = x.14^(x.15*inv(x.16))
+        x     = (x.16*x.17*inv(x.15))
+        z     = x.14^x.17
+    
+    16. gY    = x.14^(x.15*inv((x.16*x.17)))
+        x     = (x.17*inv(x.15))
+        z     = x.14^inv(x.16)
+    
+    17. gY    = x.14^(x.16*x.17)
+        x     = inv((x.15*x.16))
+        z     = x.14^(x.17*inv(x.15))
+    
+    18. gY    = x.14^(x.17*inv(x.15))
+        x     = inv((x.16*x.17))
+        z     = x.14^inv((x.15*x.16))
+    
+    19. gY    = x.14^(x.17*inv(x.15))
+        x     = (x.15*x.16)
+        z     = x.14^(x.16*x.17)
+    
+    20. gY    = x.14^(x.17*inv(x.15))
+        x     = (x.15*inv((x.16*x.17)))
+        z     = x.14^inv(x.16)
+    
+    21. gY    = x.14^(x.17*inv(x.16))
+        x     = inv(x.15)
+        z     = x.14^(x.17*inv((x.15*x.16)))
+    
+    22. gY    = x.15^inv((x.17*x.18))
+        x     = (x.18*x.19*inv(x.16))
+        z     = x.15^(x.19*inv((x.16*x.17)))
+    
+    23. gY    = x.15^(x.16*x.19*inv(x.17))
+        x     = (x.17*x.18*inv(x.16))
+        z     = x.15^(x.18*x.19)
+    
+    24. gY    = x.15^(x.16*x.19*inv((x.17*x.18)))
+        x     = (x.18*inv(x.16))
+        z     = x.15^(x.19*inv(x.17))
+    
+    25. gY    = x.15^(x.16*inv((x.17*x.18)))
+        x     = (x.18*x.19*inv(x.16))
+        z     = x.15^(x.19*inv(x.17))
+    
+    26. gY    = x.15^(x.17*x.19)
+        x     = (x.18*inv((x.16*x.17)))
+        z     = x.15^(x.18*x.19*inv(x.16))
+    
+    27. gY    = x.15^(x.17*inv((x.18*x.19)))
+        x     = (x.19*inv((x.16*x.17)))
+        z     = x.15^inv((x.16*x.18))
+    
+    28. gY    = x.15^(x.18*x.19*inv(x.16))
+        x     = inv((x.17*x.18))
+        z     = x.15^(x.19*inv((x.16*x.17)))
+    
+    29. gY    = x.15^(x.18*x.19*inv(x.16))
+        x     = (x.16*inv((x.17*x.18)))
+        z     = x.15^(x.19*inv(x.17))
+    
+    30. gY    = x.15^(x.18*inv(x.16))
+        x     = (x.16*x.19*inv((x.17*x.18)))
+        z     = x.15^(x.19*inv(x.17))
+    
+    31. gY    = x.15^(x.18*inv(x.16))
+        x     = (x.19*inv((x.17*x.18)))
+        z     = x.15^(x.19*inv((x.16*x.17)))
+    
+    32. gY    = x.15^(x.19*inv(x.17))
+        x     = (x.18*inv(x.16))
+        z     = x.15^(x.18*x.19*inv((x.16*x.17)))
+    
+    33. gY    = x.15^(x.19*inv((x.16*x.17)))
+        x     = (x.17*x.18)
+        z     = x.15^(x.18*x.19*inv(x.16))
+    
+    34. gY    = x.15^(x.19*inv((x.17*x.18)))
+        x     = (x.18*inv(x.16))
+        z     = x.15^(x.19*inv((x.16*x.17)))
+    
+    35. gY    = z.15^x.20
+        x     = inv(x.20)
+        z     = z.15
+    
+    36. gY    = x.16^(x.17*x.21*inv((x.18*x.19)))
+        x     = (x.19*x.20*inv(x.17))
+        z     = x.16^(x.20*x.21*inv(x.18))
+    
+    37. gY    = x.16^(x.18*x.21*inv((x.19*x.20)))
+        x     = (x.20*inv((x.17*x.18)))
+        z     = x.16^(x.21*inv((x.17*x.19)))
+    
+    38. gY    = x.16^(x.18*inv((x.19*x.20)))
+        x     = (x.20*x.21*inv((x.17*x.18)))
+        z     = x.16^(x.21*inv((x.17*x.19)))
+    
+    39. gY    = x.16^(x.19*x.21*inv(x.17))
+        x     = (x.17*x.20*inv((x.18*x.19)))
+        z     = x.16^(x.20*x.21*inv(x.18))
+    
+    40. gY    = x.16^(x.19*x.21*inv(x.17))
+        x     = (x.20*inv((x.18*x.19)))
+        z     = x.16^(x.20*x.21*inv((x.17*x.18)))
+    
+    41. gY    = x.16^(x.21*inv((x.18*x.19)))
+        x     = (x.19*x.20*inv(x.17))
+        z     = x.16^(x.20*x.21*inv((x.17*x.18)))
+    
+    42. gY    = z.16^(x.21*inv(x.22))
+        x     = (x.22*inv(x.21))
+        z     = z.16
+    
+    43. gY    = x.17^(x.19*x.23*inv((x.20*x.21)))
+        x     = (x.21*x.22*inv((x.18*x.19)))
+        z     = x.17^(x.22*x.23*inv((x.18*x.20)))
+    
+    44. gY    = x.22^x.23
+        x     = x.16
+        z     = x.22^(x.16*x.23)
+    
+    45. gY    = x.23^inv((x.17*x.25))
+        x     = x.17
+        z     = x.23^inv(x.25)
+    
+    46. gY    = x.23^(x.25*inv(x.17))
+        x     = x.17
+        z     = x.23^x.25
+    
+    47. gY    = x.24^(x.27*inv((x.18*x.26)))
+        x     = x.18
+        z     = x.24^(x.27*inv(x.26))
+  */
+
+rule (modulo E) I_3:
+   [ St_A_3( A, id, B, ltkA, pkLtkB, x, gX, gY, K ) ]
+  --[
+  Send( A,
+        <A, sign(<gX, gY>, ltkA), mac(<'0', A>, hash(K)), pk(ltkA)>
+  )
+  ]->
+   [
+   St_A_4( A, id, B, ltkA, pkLtkB, x, gX, gY, K, hash(K) ),
+   Out( <A, sign(<gX, gY>, ltkA), mac(<'0', A>, hash(K)), pk(ltkA)> )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) R_3:
+   [
+   St_B_3( B, id, A, ltkB, pkLtkA, y, gX, gY, K ),
+   In( <A, signXYltkA, mac(<'0', A>, hash(K)), pkLtkA> )
+   ]
+  --[
+  Receive( B, <A, signXYltkA, mac(<'0', A>, hash(K)), pkLtkA> ),
+  IsTrue( verify(signXYltkA, <gX, gY>, pkLtkA) )
+  ]->
+   [ St_B_4( B, id, A, ltkB, pkLtkA, y, gX, gY, K, hash(K) ) ]
+
+  /*
+  rule (modulo AC) R_3:
+     [
+     St_B_3( B, id, A, ltkB, pkLtkA, y, gX, gY, K ),
+     In( <A, signXYltkA, mac(<'0', A>, hash(K)), pkLtkA> )
+     ]
+    --[
+    Receive( B, <A, signXYltkA, mac(<'0', A>, hash(K)), pkLtkA> ),
+    IsTrue( z )
+    ]->
+     [ St_B_4( B, id, A, ltkB, pkLtkA, y, gX, gY, K, hash(K) ) ]
+    variants (modulo AC)
+    1. gX    = gX.14
+       gY    = gY.15
+       pkLtkA
+             = pkLtkA.18
+       signXYltkA
+             = signXYltkA.19
+       z     = verify(signXYltkA.19, <gX.14, gY.15>, pkLtkA.18)
+    
+    2. gX    = gX.16
+       gY    = gY.17
+       pkLtkA
+             = pk(x.26)
+       signXYltkA
+             = sign(<gX.16, gY.17>, x.26)
+       z     = true
+  */
+
+rule (modulo E) R_4:
+   [ St_B_4( B, id, A, ltkB, pkLtkA, y, gX, gY, K, Km ) ]
+  --[
+  Send( B, <B, sign(<gX, gY>, ltkB), mac(<'1', B>, Km), pk(ltkB)> ),
+  FinishR( ), Honest( B ), Honest( A ), Commit( B, A, <'R', 'I', K> )
+  ]->
+   [
+   St_B_5( B, id, A, ltkB, pkLtkA, K ),
+   Out( <B, sign(<gX, gY>, ltkB), mac(<'1', B>, Km), pk(ltkB)> )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) I_4:
+   [
+   St_A_4( A, id, B, ltkA, pkLtkB, x, gX, gY, K, Km ),
+   In( <B, signXYltkB, mac(<'1', B>, Km), pkLtkB> )
+   ]
+  --[
+  Receive( A, <B, signXYltkB, mac(<'1', B>, Km), pkLtkB> ),
+  FinishI( ), Honest( B ), Honest( A ),
+  IsTrue( verify(signXYltkB, <gX, gY>, pkLtkB) ),
+  Commit( A, B, <'I', 'R', K> )
+  ]->
+   [ St_A_5( A, id, B, ltkA, pkLtkB, K ) ]
+
+  /*
+  rule (modulo AC) I_4:
+     [
+     St_A_4( A, id, B, ltkA, pkLtkB, x, gX, gY, K, Km ),
+     In( <B, signXYltkB, mac(<'1', B>, Km), pkLtkB> )
+     ]
+    --[
+    Receive( A, <B, signXYltkB, mac(<'1', B>, Km), pkLtkB> ),
+    FinishI( ), Honest( B ), Honest( A ), IsTrue( z ),
+    Commit( A, B, <'I', 'R', K> )
+    ]->
+     [ St_A_5( A, id, B, ltkA, pkLtkB, K ) ]
+    variants (modulo AC)
+    1. gX    = gX.20
+       gY    = gY.21
+       pkLtkB
+             = pkLtkB.24
+       signXYltkB
+             = signXYltkB.25
+       z     = verify(signXYltkB.25, <gX.20, gY.21>, pkLtkB.24)
+    
+    2. gX    = gX.38
+       gY    = gY.39
+       pkLtkB
+             = pk(x.70)
+       signXYltkB
+             = sign(<gX.38, gY.39>, x.70)
+       z     = true
+  */
+
+restriction IsTrueMustHold:
+  "∀ x #i. (IsTrue( x ) @ #i) ⇒ (x = true)"
+  // safety formula
+
+restriction OnlyOneKeyPair:
+  "∀ A #i #j.
+    ((CreateKey( A ) @ #i) ∧ (CreateKey( A ) @ #j)) ⇒ (#i = #j)"
+  // safety formula
+
+lemma executable:
+  exists-trace
+  "∃ #i #j.
+    (((((((FinishI( ) @ #i) ∧ (FinishR( ) @ #j)) ∧
+         (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ (¬(x = y)))) ∧
+        (¬(∃ A #j.1. Reveal( A ) @ #j.1))) ∧
+       (∀ A #i.1 #j.1.
+         ((CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j.1)) ⇒
+         (#i.1 = #j.1))) ∧
+      (∀ #j1 #j2.
+        ((Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+     (∀ #j1 #j2.
+       ((Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+    (∃ A B #i.1 #j.1.
+      ((((InitA( A ) @ #i.1) ∧ (InitB( B ) @ #j.1)) ∧
+        (InitAB( A, B ) @ #i.1)) ∧
+       (InitBA( B, A ) @ #j.1)) ∧
+      (¬(A = B)))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i #j.
+  (FinishI( ) @ #i) ∧ (FinishR( ) @ #j)
+ ∧
+  (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ ¬(x = y)) ∧
+  (∀ A #j.1. (Reveal( A ) @ #j.1) ⇒ ⊥) ∧
+  (∀ A #i.1 #j.1.
+    (CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j.1) ⇒ #i.1 = #j.1) ∧
+  (∀ #j1 #j2. (Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∀ #j1 #j2. (Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∃ A B #i.1 #j.1.
+    (InitA( A ) @ #i.1) ∧
+    (InitB( B ) @ #j.1) ∧
+    (InitAB( A, B ) @ #i.1) ∧
+    (InitBA( B, A ) @ #j.1)
+   ∧
+    ¬(A = B))"
+*/
+simplify
+solve( St_A_4( A, id, B, ltkA, pk(x), x.1, gX, gY, K, Km ) ▶₀ #i )
+  case I_3
+  solve( St_B_4( B, id.1, A.2, ltkB, pkLtkA, y, gX, gY.1, K.1, Km
+         ) ▶₀ #j )
+    case R_3
+    solve( !KU( sign(<'g'^~x, gY>, ~ltkA.1) ) @ #vk.3 )
+      case R_4
+      solve( !KU( sign(<'g'^~x, 'g'^~y>, ~ltkA) ) @ #vk.11 )
+        case I_3
+        solve( !KU( mac(<'1', $A.1>, hash('g'^(~x*~y))) ) @ #vk.6 )
+          case R_4
+          solve( !KU( pk(~ltkA.1) ) @ #vk.9 )
+            case R_4
+            solve( !KU( mac(<'0', $A>, hash('g'^(~x*~y))) ) @ #vk.13 )
+              case I_3
+              solve( !KU( pk(~ltkA) ) @ #vk.14 )
+                case I_3
+                solve( !KU( 'g'^~x ) @ #vk.15 )
+                  case I_1
+                  solve( !KU( 'g'^~y ) @ #vk.14 )
+                    case R_2
+                    SOLVED // trace found
+                  qed
+                qed
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma attacker_can_be_R:
+  exists-trace
+  "∃ #i.
+    ((((((FinishI( ) @ #i) ∧
+         (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ (¬(x = y)))) ∧
+        (∀ #i.1 #j.
+          ((Init_A( ) @ #i.1) ∧ (Init_A( ) @ #j)) ⇒ (#i.1 = #j))) ∧
+       (¬(∃ #i.1. Init_B( ) @ #i.1))) ∧
+      (∃ A E #i1 #k1 #k2.
+        ((CreateKey( A ) @ #i1) ∧ (CreateKey( E ) @ #k1)) ∧
+        (Reveal( E ) @ #k2))) ∧
+     (∀ A #i.1 #j.
+       ((CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j)) ⇒ (#i.1 = #j))) ∧
+    (∀ A B #i.1 #j.
+      ((Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j)) ⇒ (#i.1 = #j))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i.
+  (FinishI( ) @ #i)
+ ∧
+  (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ ¬(x = y)) ∧
+  (∀ #i.1 #j. (Init_A( ) @ #i.1) ∧ (Init_A( ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ #i.1. (Init_B( ) @ #i.1) ⇒ ⊥) ∧
+  (∃ A E #i1 #k1 #k2.
+    (CreateKey( A ) @ #i1) ∧
+    (CreateKey( E ) @ #k1) ∧
+    (Reveal( E ) @ #k2)) ∧
+  (∀ A #i.1 #j.
+    (CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ A B #i.1 #j.
+    (Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j) ⇒ #i.1 = #j)"
+*/
+simplify
+solve( St_A_4( A, id, B, ltkA, pk(x), x.1, gX, gY, K, Km ) ▶₀ #i )
+  case I_3
+  solve( !Ltk( $A.3, ltkA.4 ) ▶₀ #k2 )
+    case Register_pk
+    solve( !KU( sign(<'g'^~x, gY>, ~ltkA.1) ) @ #vk.3 )
+      case c_sign
+      solve( !KU( ~ltkA.1 ) @ #vk.9 )
+        case Reveal_ltk
+        solve( splitEqs(4) )
+          case split_case_2
+          solve( !KU( mac(<'1', $A.1>, hash(gY^~x)) ) @ #vk.6 )
+            case c_mac
+            solve( !KU( hash(gY^~x) ) @ #vk.12 )
+              case c_hash
+              solve( !KU( gY^~x ) @ #vk.14 )
+                case I_1
+                solve( !KU( pk(~ltkA.1) ) @ #vk.10 )
+                  case Register_pk
+                  SOLVED // trace found
+                qed
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma attacker_can_be_I:
+  exists-trace
+  "∃ #i.
+    ((((((FinishR( ) @ #i) ∧
+         (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ (¬(x = y)))) ∧
+        (∀ #i.1 #j.
+          ((Init_B( ) @ #i.1) ∧ (Init_B( ) @ #j)) ⇒ (#i.1 = #j))) ∧
+       (¬(∃ #i.1. Init_A( ) @ #i.1))) ∧
+      (∃ B E #i1 #k1 #k2.
+        ((CreateKey( B ) @ #i1) ∧ (CreateKey( E ) @ #k1)) ∧
+        (Reveal( E ) @ #k2))) ∧
+     (∀ A #i.1 #j.
+       ((CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j)) ⇒ (#i.1 = #j))) ∧
+    (∀ A B #i.1 #j.
+      ((Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j)) ⇒ (#i.1 = #j))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ #i.
+  (FinishR( ) @ #i)
+ ∧
+  (∀ x y #i.1. (NotEq( x, y ) @ #i.1) ⇒ ¬(x = y)) ∧
+  (∀ #i.1 #j. (Init_B( ) @ #i.1) ∧ (Init_B( ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ #i.1. (Init_A( ) @ #i.1) ⇒ ⊥) ∧
+  (∃ B E #i1 #k1 #k2.
+    (CreateKey( B ) @ #i1) ∧
+    (CreateKey( E ) @ #k1) ∧
+    (Reveal( E ) @ #k2)) ∧
+  (∀ A #i.1 #j.
+    (CreateKey( A ) @ #i.1) ∧ (CreateKey( A ) @ #j) ⇒ #i.1 = #j) ∧
+  (∀ A B #i.1 #j.
+    (Reveal( A ) @ #i.1) ∧ (Reveal( B ) @ #j) ⇒ #i.1 = #j)"
+*/
+simplify
+solve( St_B_4( B, id, A, ltkB, pkLtkA, y, gX, gY, K, Km ) ▶₀ #i )
+  case R_3
+  solve( !Ltk( $A.3, ltkA.3 ) ▶₀ #k2 )
+    case Register_pk
+    solve( !KU( sign(<gX, 'g'^~y>, ~ltkA) ) @ #vk.3 )
+      case c_sign
+      solve( !KU( ~ltkA ) @ #vk.9 )
+        case Reveal_ltk
+        solve( splitEqs(4) )
+          case split_case_2
+          solve( !KU( mac(<'0', $A.1>, hash(gX^~y)) ) @ #vk.6 )
+            case c_mac
+            solve( !KU( hash(gX^~y) ) @ #vk.12 )
+              case c_hash
+              solve( !KU( gX^~y ) @ #vk.14 )
+                case R_2
+                solve( !KU( pk(~ltkA) ) @ #vk.10 )
+                  case Register_pk
+                  SOLVED // trace found
+                qed
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma noninjectiveagreementINITIATOR:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'I', 'R', t> ) @ #i) ⇒
+    ((∃ #j. Running( b, a, <'I', 'R', t> ) @ #j) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'I', 'R', t> ) @ #i)
+ ∧
+  (∀ #j. (Running( b, a, <'I', 'R', t> ) @ #j) ⇒ ⊥) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'I', 'R', t> ) @ #i )
+  case I_4
+  solve( St_A_4( a, id, b, ltkA, pk(x), x.1, gX, gY, t, Km ) ▶₀ #i )
+    case I_3
+    solve( !KU( sign(<'g'^~x, gY>, ~ltkA.1) ) @ #vk.3 )
+      case I_3
+      solve( splitEqs(1) )
+        case split_case_1
+        solve( !KU( mac(<'1', $A>, hash(gY^~x)) ) @ #vk.5 )
+          case c_mac
+          solve( !KU( hash(gY^~x) ) @ #vk.9 )
+            case c_hash
+            solve( !KU( gY^~x ) @ #vk.11 )
+              case I_1
+              solve( !KU( pk(~ltkA) ) @ #vk.9 )
+                case I_3
+                by sorry
+              next
+                case R_4
+                by sorry
+              next
+                case Register_pk
+                SOLVED // trace found
+              next
+                case c_pk
+                by sorry
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma injectiveagreementINITIATOR:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'I', 'R', t> ) @ #i) ⇒
+    ((∃ #j.
+       (Running( b, a, <'I', 'R', t> ) @ #j) ∧
+       (¬(∃ a2 b2 #i2.
+           (Commit( a2, b2, <'I', 'R', t> ) @ #i2) ∧ (¬(#i2 = #i))))) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'I', 'R', t> ) @ #i)
+ ∧
+  (∀ #j.
+    (Running( b, a, <'I', 'R', t> ) @ #j)
+   ⇒
+    ∃ a2 b2 #i2.
+     (Commit( a2, b2, <'I', 'R', t> ) @ #i2) ∧ ¬(#i2 = #i)) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'I', 'R', t> ) @ #i )
+  case I_4
+  solve( St_A_4( a, id, b, ltkA, pk(x), x.1, gX, gY, t, Km ) ▶₀ #i )
+    case I_3
+    solve( !KU( sign(<'g'^~x, gY>, ~ltkA.1) ) @ #vk.3 )
+      case I_3
+      solve( splitEqs(1) )
+        case split_case_1
+        solve( !KU( mac(<'1', $A>, hash(gY^~x)) ) @ #vk.5 )
+          case c_mac
+          solve( !KU( hash(gY^~x) ) @ #vk.9 )
+            case c_hash
+            solve( !KU( gY^~x ) @ #vk.11 )
+              case I_1
+              solve( !KU( pk(~ltkA) ) @ #vk.9 )
+                case I_3
+                by sorry
+              next
+                case R_4
+                by sorry
+              next
+                case Register_pk
+                SOLVED // trace found
+              next
+                case c_pk
+                by sorry
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma noninjectiveagreementRESPONDER:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'R', 'I', t> ) @ #i) ⇒
+    ((∃ #j. Running( b, a, <'R', 'I', t> ) @ #j) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'R', 'I', t> ) @ #i)
+ ∧
+  (∀ #j. (Running( b, a, <'R', 'I', t> ) @ #j) ⇒ ⊥) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+simplify
+solve( Commit( a, b, <'R', 'I', t> ) @ #i )
+  case R_4
+  solve( St_B_4( a, id, b, ltkB, pkLtkA, y, gX, gY, t, Km ) ▶₀ #i )
+    case R_3
+    solve( !KU( sign(<gX, 'g'^~y>, ~ltkA) ) @ #vk.3 )
+      case I_3
+      solve( !KU( mac(<'0', $A.1>, hash('g'^(~x*~y))) ) @ #vk.5 )
+        case I_3
+        solve( splitEqs(2) )
+          case split_case_1
+          solve( !KU( pk(~ltkA) ) @ #vk.6 )
+            case I_3
+            by sorry /* removed */
+          next
+            case R_4
+            by sorry /* removed */
+          next
+            case Register_pk
+            solve( !KU( 'g'^~y ) @ #vk.8 )
+              case R_2
+              solve( !KU( 'g'^~x ) @ #vk.8 )
+                case I_1
+                SOLVED // trace found
+              next
+                case c_exp
+                by sorry /* removed */
+              qed
+            next
+              case c_exp
+              by sorry /* removed */
+            qed
+          next
+            case c_pk
+            by sorry /* removed */
+          qed
+        next
+          case split_case_2
+          by sorry /* bound 5 hit */
+        qed
+      next
+        case c_mac
+        by sorry /* removed */
+      qed
+    next
+      case R_4
+      by sorry /* removed */
+    next
+      case c_sign
+      by sorry /* removed */
+    qed
+  qed
+qed
+
+lemma injectiveagreementRESPONDER:
+  all-traces
+  "∀ a b t #i.
+    (Commit( a, b, <'R', 'I', t> ) @ #i) ⇒
+    ((∃ #j.
+       (Running( b, a, <'R', 'I', t> ) @ #j) ∧
+       (¬(∃ a2 b2 #i2.
+           (Commit( a2, b2, <'R', 'I', t> ) @ #i2) ∧ (¬(#i2 = #i))))) ∨
+     (∃ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ a b t #i.
+  (Commit( a, b, <'R', 'I', t> ) @ #i)
+ ∧
+  (∀ #j.
+    (Running( b, a, <'R', 'I', t> ) @ #j)
+   ⇒
+    ∃ a2 b2 #i2.
+     (Commit( a2, b2, <'R', 'I', t> ) @ #i2) ∧ ¬(#i2 = #i)) ∧
+  (∀ X #r. (Reveal( X ) @ #r) ∧ (Honest( X ) @ #i) ⇒ ⊥)"
+*/
+by sorry
+
+/* All well-formedness checks were successful. */
+
+end

@@ -1,0 +1,271 @@
+theory OTR4
+begin
+
+builtins: signing, diffie-hellman
+// mac{X}k is a message authentication code for X with the key k
+// hash/1 is a has functoin
+functions: mac/2, hash/1
+
+// Set up symmetric keys
+rule Register_pk:
+  [ Fr(~ltkA) ] 
+--[ CreateKey($A) ]->
+  [ !Ltk($A, ~ltkA)
+  , !Pk($A, pk(~ltkA))
+  , Out(pk(~ltkA)) 
+  ]
+
+rule Reveal_ltk:
+  [ !Ltk(A, ltkA) ] --[ Reveal(A) ]-> [ Out(ltkA) ]
+
+/*
+  We model the following protocol from section 3.4
+  This is improved from OTR3
+
+  1. A -> B: g^x
+  2. A <- B: g^y
+  3. A -> B: <A, sign{<g^x,g^y>}ltkA, mac{<"0",A>}hash(g^xy), pk(ltkA)>
+  4. A <- B: <B, sign{<g^x,g^y>}ltkB, mac{<"1",B>}hash(g^xy), pk(ltkB)>
+
+  Where {.}_{ltkA} is signing and pk(ltkA) is the 
+  public key of A. The ~x and ~y are secret fresh
+  values and g is a shared public value (not
+  necessarily fresh).
+ */
+
+rule Init_A:
+  [ Fr(~id)
+  , !Pk(A, pk(~ltkA)) // Own private key
+  , !Pk(B, pkLtkB)    // Pinned public key of B
+  ]
+--[ Init_A()
+  , InitA(A)
+  , InitAB(A,B)
+  , NotEq(A,B)
+  ]->
+  [ St_A_1(A, ~id, B, ~ltkA, pkLtkB)
+  ]
+
+rule Init_B:
+  [ Fr(~id)
+  , !Pk(B, pk(~ltkB)) // Own private key
+  , !Pk(A, pkLtkA)  // Pinned public key of A
+  ]
+--[ Init_B()
+  , InitB(B)
+  , InitBA(B,A)
+  , NotEq(A,B)
+  ]->
+  [ St_B_1(B, ~id, A, ~ltkB, pkLtkA)
+  ]
+
+
+// 1. A -> B: g^x
+rule I_1:
+  let gX = 'g'^~x
+  in
+  [ St_A_1(A, id, B, ltkA, pkLtkB)
+  , Fr(~x)
+  ]
+--[ Send(A,gX)
+  ]->
+  [ St_A_2(A, id, B, ltkA, pkLtkB, ~x, gX)
+  , Out(gX)
+  , Secret(A,~x)
+  , Honest(A)
+  ]
+
+rule R_1:
+  [ St_B_1(B, id, A, ltkB, pkLtkA)
+  , In(gX)
+  ]
+--[ Receive(B,gX)
+  ]->
+  [ St_B_2(B, id, A, ltkB, pkLtkA, gX)
+  ]
+
+// 2. A <- B: g^y
+rule R_2:
+  let gY = 'g'^~y
+      K = gX^~y
+  in
+  [ St_B_2(B, id, A, ltkB, pkLtkA, gX)
+  , Fr(~y)
+  ]
+--[ Send(B,gY)
+  , Running(B,A,<'I','R',K>)
+  ]->
+  [ St_B_3(B, id, A, ltkB, pkLtkA, ~y, gX, gY, K)
+  , Out(gY)
+  ]
+
+rule I_2:
+  let K = gY^x
+  in
+  [ St_A_2(A, id, B, ltkA, pkLtkB, x, gX)
+  , In(gY)
+  ]
+--[ Receive(A,gY)
+  , Running(A,B,<'R','I',K>)
+  ]->
+  [ St_A_3(A, id, B, ltkA, pkLtkB, x, gX, gY, K)
+  ]
+
+
+// 3. A -> B: <A, sign{<g^x,g^y>}ltkA, mac{<"0",A>}hash(g^xy), pk(ltkA)>
+rule I_3:
+  let Km = hash(K)
+      m = <A, sign{<gX,gY>}ltkA, mac{<'0',A>}Km, pk(ltkA)>
+  in
+  [ St_A_3(A, id, B, ltkA, pkLtkB, x, gX, gY, K)
+  ]
+--[ Send(A,m)
+  ]->
+  [ St_A_4(A, id, B, ltkA, pkLtkB, x, gX, gY, K, Km)
+  , Out(m)
+  ]
+
+
+rule R_3:
+  let Km = hash(K)
+      m = <A, signXYltkA, mac{<'0',A>}Km, pkLtkA>
+      verif = verify(signXYltkA,<gX,gY>,pkLtkA)
+  in
+  [ St_B_3(B, id, A, ltkB, pkLtkA, y, gX, gY, K)
+  , In(m)
+  ]
+--[ Receive(B,m)
+  , IsTrue(verif) // Check signature
+  ]->
+  [ St_B_4(B, id, A, ltkB, pkLtkA, y, gX, gY, K, Km)
+  ]
+
+// 4. A <- B: <B, sign{<g^x,g^y>}ltkB, mac{<"1",B>}hash(g^xy), pk(ltkB)>
+rule R_4:
+  let m = <B, sign{<gX,gY>}ltkB, mac{<'1',B>}Km, pk(ltkB)>
+  in
+  [ St_B_4(B, id, A, ltkB, pkLtkA, y, gX, gY, K, Km)
+  ]
+--[ Send(B,m)
+  , FinishR()
+  , Honest(B)
+  , Honest(A)
+  , Commit(B,A,<'R','I',K>)
+  , Secret(B,K)
+  , Secret(B,y)
+  ]->
+  [ St_B_5(B, id, A, ltkB, pkLtkA, K) // Remove unneeded
+  , Out(m)
+  ]
+
+
+rule I_4:
+  let m = <B, signXYltkB, mac{<'1',B>}Km, pkLtkB>
+      verif = verify(signXYltkB,<gX,gY>,pkLtkB)
+  in
+  [ St_A_4(A, id, B, ltkA, pkLtkB, x, gX, gY, K, Km)
+  , In(m)
+  ]
+--[ Receive(A,m)
+  , FinishI()
+  , Honest(B)
+  , Honest(A)
+  , IsTrue(verif) // Check signature
+  , Commit(A,B,<'I','R',K>)
+  , Secret(A,K)
+  , Secret(A,x)
+  ]->
+  [ St_A_5(A, id, B, ltkA, pkLtkB, K) // Remove unneeded
+  ]
+
+
+// Force IsTrue to hold everywhere
+restriction IsTrueMustHold:
+  "All x #i. IsTrue(x)@i ==> x=true"
+
+// There can only be one keypair for each actor
+restriction OnlyOneKeyPair:
+  "All A #i #j. CreateKey(A)@i & CreateKey(A)@j ==> #i=#j"
+
+restriction NotEqMustHold:
+  "All A B #i. NotEq(A,B)@i ==> not A=B"
+
+// Own lemma
+lemma executable: // verified
+  exists-trace
+    "Ex #i #j. FinishI()@i & FinishR()@j 
+   & (All x y #i. NotEq(x,y)@i ==> not x = y)
+   & not (Ex A #j. Reveal(A)@j)
+   & (All A #i #j. CreateKey(A)@i & CreateKey(A)@j ==> #i = #j)
+   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
+   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
+   & (Ex A B #i #j. InitA(A)@i & InitB(B)@j & InitAB(A,B)@i & InitBA(B,A)@j & not A=B)
+   "
+
+// Ensure attacker can act as R
+lemma attacker_can_be_R: // verified
+  exists-trace
+    "Ex #i. FinishI()@i
+   & (All x y #i. NotEq(x,y)@i ==> not x = y)
+   & (All #i #j. Init_A()@i & Init_A()@j ==> #i = #j)
+   & not (Ex #i. Init_B()@i)
+   & (Ex A E #i1 #k1 #k2. CreateKey(A)@i1 & CreateKey(E)@k1 & Reveal(E)@k2)
+   & (All A #i #j. CreateKey(A)@i & CreateKey(A)@j ==> #i = #j)
+   & (All A B #i #j. Reveal(A)@i & Reveal(B)@j ==> #i = #j)
+   "
+
+// Ensure attacker can act as I
+lemma attacker_can_be_I: // verified
+  exists-trace
+    "Ex #i. FinishR()@i
+   & (All x y #i. NotEq(x,y)@i ==> not x = y)
+   & (All #i #j. Init_B()@i & Init_B()@j ==> #i = #j)
+   & not (Ex #i. Init_A()@i)
+   & (Ex B E #i1 #k1 #k2. CreateKey(B)@i1 & CreateKey(E)@k1 & Reveal(E)@k2)
+   & (All A #i #j. CreateKey(A)@i & CreateKey(A)@j ==> #i = #j)
+   & (All A B #i #j. Reveal(A)@i & Reveal(B)@j ==> #i = #j)
+   "
+
+// Given, immutable lemmas
+lemma secrecy:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma secrecy_PFS:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
+
+lemma noninjectiveagreementINITIATOR: // disproven by reflexity
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementINITIATOR: // disproven by reflexivity
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
+        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t>) @i2
+                           & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+
+lemma noninjectiveagreementRESPONDER: // disproven
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementRESPONDER: // disproven
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
+              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t>) @i2
+                                 & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+end
