@@ -61,14 +61,14 @@ rule (modulo E) I_2:
 
 rule (modulo E) I_3:
    [ St_I_3( I, id, R, kIR, kRI, x, y ) ]
-  --[ Send( I, mac(x, kIR) ) ]->
-   [ St_I_4( I, id, R, kIR, kRI, x, y ), Out( mac(x, kIR) ) ]
+  --[ Send( I, mac(y, kIR) ) ]->
+   [ St_I_4( I, id, R, kIR, kRI, x, y ), Out( mac(y, kIR) ) ]
 
   /* has exactly the trivial AC variant */
 
 rule (modulo E) R_3:
-   [ St_R_3( R, id, I, kIR, kRI, x, y ), In( mac(x, kIR) ) ]
-  --[ Receive( R, mac(x, kIR) ) ]->
+   [ St_R_3( R, id, I, kIR, kRI, x, y ), In( mac(y, kIR) ) ]
+  --[ Receive( R, mac(y, kIR) ) ]->
    [ St_R_4( R, id, I, kIR, kRI, x, y ) ]
 
   /* has exactly the trivial AC variant */
@@ -76,17 +76,17 @@ rule (modulo E) R_3:
 rule (modulo E) R_4:
    [ St_R_4( R, id, I, kIR, kRI, x, y ) ]
   --[
-  Send( R, mac(y, kRI) ), Commit( R, I, <'R', 'I', x, y> ),
+  Send( R, mac(x, kRI) ), Commit( R, I, <'R', 'I', x, y> ),
   Honest( I ), Honest( R ), FinishR( )
   ]->
-   [ St_R_5( R, id, I, kIR, kIR, x, y ), Out( mac(y, kRI) ) ]
+   [ St_R_5( R, id, I, kIR, kIR, x, y ), Out( mac(x, kRI) ) ]
 
   /* has exactly the trivial AC variant */
 
 rule (modulo E) I_4:
-   [ St_I_4( I, id, R, kIR, kRI, x, y ), In( mac(y, kRI) ) ]
+   [ St_I_4( I, id, R, kIR, kRI, x, y ), In( mac(x, kRI) ) ]
   --[
-  Receive( I, mac(y, kRI) ), Commit( I, R, <'I', 'R', x, y> ),
+  Receive( I, mac(x, kRI) ), Commit( I, R, <'I', 'R', x, y> ),
   Honest( I ), Honest( R ), FinishI( )
   ]->
    [ St_I_5( I, id, R, kIR, kRI, x, y ) ]
@@ -137,14 +137,14 @@ solve( St_I_4( I, id, R, kIR, kRI, x, y ) ▶₀ #i )
     case R_3
     solve( (#vr.3 = #vr.4)  ∥ (#vr.3 = #vr.8)  ∥ (#vr.4 = #vr.8) )
       case case_2
-      solve( !KU( mac(y, ~k.1) ) @ #vk )
+      solve( !KU( mac(~x, ~k.1) ) @ #vk )
         case R_4
-        solve( !KU( mac(x.1, ~k) ) @ #vk.2 )
+        solve( !KU( mac(~y.1, ~k) ) @ #vk.2 )
           case I_3
-          solve( !KU( ~y ) @ #vk.2 )
-            case R_2
-            solve( !KU( ~x ) @ #vk.3 )
-              case I_1
+          solve( !KU( ~x ) @ #vk.3 )
+            case I_1
+            solve( !KU( ~y ) @ #vk.3 )
+              case R_2
               SOLVED // trace found
             qed
           qed
@@ -170,7 +170,7 @@ guarded formula characterizing all satisfying traces:
 simplify
 solve( St_I_4( I, id, R, kIR, kRI, x, y ) ▶₀ #i )
   case I_3
-  solve( !KU( mac(y, ~k.1) ) @ #vk )
+  solve( !KU( mac(~x, ~k.1) ) @ #vk )
     case I_3
     solve( !KU( ~x ) @ #vk.1 )
       case I_1
@@ -195,11 +195,14 @@ guarded formula characterizing all satisfying traces:
 simplify
 solve( St_R_4( R, id, I, kIR, kRI, x, y ) ▶₀ #i )
   case R_3
-  solve( !KU( mac(x, ~k) ) @ #vk )
+  solve( !KU( mac(~y, ~k) ) @ #vk )
     case c_mac
-    solve( !KU( ~k ) @ #vk.2 )
+    solve( !KU( ~k ) @ #vk.3 )
       case Reveal_ltk
-      SOLVED // trace found
+      solve( !KU( ~y ) @ #vk.3 )
+        case R_2
+        SOLVED // trace found
+      qed
     qed
   qed
 qed
@@ -223,9 +226,9 @@ solve( Commit( a, b, <'I', 'R', t> ) @ #i )
   case I_4
   solve( St_I_4( a, id, b, kIR, kRI, x, y ) ▶₀ #i )
     case I_3
-    solve( !KU( mac(y, ~k.1) ) @ #vk )
+    solve( !KU( mac(~x, ~k.1) ) @ #vk )
       case I_3
-      solve( !KU( ~x.1 ) @ #vk.1 )
+      solve( !KU( ~x ) @ #vk.2 )
         case I_1
         SOLVED // trace found
       qed
@@ -259,9 +262,9 @@ solve( Commit( a, b, <'I', 'R', t> ) @ #i )
   case I_4
   solve( St_I_4( a, id, b, kIR, kRI, x, y ) ▶₀ #i )
     case I_3
-    solve( !KU( mac(y, ~k.1) ) @ #vk )
+    solve( !KU( mac(~x, ~k.1) ) @ #vk )
       case I_3
-      solve( !KU( ~x.1 ) @ #vk.1 )
+      solve( !KU( ~x ) @ #vk.2 )
         case I_1
         SOLVED // trace found
       qed
@@ -288,10 +291,10 @@ solve( Commit( a, b, <'R', 'I', t> ) @ #i )
   case R_4
   solve( St_R_4( a, id, b, kIR, kRI, x, y ) ▶₀ #i )
     case R_3
-    solve( !KU( mac(x, ~k) ) @ #vk )
+    solve( !KU( mac(~y, ~k) ) @ #vk )
       case I_3
-      solve( !KU( ~x ) @ #vk.1 )
-        case I_1
+      solve( !KU( ~y ) @ #vk.2 )
+        case R_2
         SOLVED // trace found
       qed
     qed
@@ -324,10 +327,10 @@ solve( Commit( a, b, <'R', 'I', t> ) @ #i )
   case R_4
   solve( St_R_4( a, id, b, kIR, kRI, x, y ) ▶₀ #i )
     case R_3
-    solve( !KU( mac(x, ~k) ) @ #vk )
+    solve( !KU( mac(~y, ~k) ) @ #vk )
       case I_3
-      solve( !KU( ~x ) @ #vk.1 )
-        case I_1
+      solve( !KU( ~y ) @ #vk.2 )
+        case R_2
         SOLVED // trace found
       qed
     qed
