@@ -1,8 +1,6 @@
 theory P3a 
 begin
 
-builtins: signing
-
 // Set up symmetric keys
 rule SetupSymmetricKey:
   [ Fr(~k) ] --[ InitKey() ]-> [ !Ltk($A, $B, ~k) ]
@@ -12,166 +10,150 @@ rule Reveal_ltk:
 
 // user-defined function
 functions:
-  kdf/3
+  mac/2, kdf/3
   
 /*
   We model the following protocol
 
   1. A -> B: x
   2. A <- B: y
-  3. A -> B: {y}_{Kab}
-  4. A <- B: {x}_{Kab}
+  3. A -> B: mac{y}{sIR}
+  4. A <- B: mac{x}{sRI}
+
+  where sIR = kdf(kIR,x,y)
+        sRI = kdf(kRI,x,y)
  */
 
 rule Init_A:
   [ Fr(~id)
-  , !Ltk(I, R, ltkIR)
-  , !Ltk(R, I, ltkRI)
+  , !Ltk(A, B, kIR)
+  , !Ltk(B, A, kRI)
   ]
 --[ Init_A()
-  , Create_A(I, ~id) 
+  , Create_A(A, ~id) 
   ]->
-  [ St_A_1(I, ~id, R, ltkIR, ltkRI)
+  [ St_I_1(A, ~id, B, kIR, kRI)
   ]
 
 rule Init_B:
   [ Fr(~id)
-  , !Ltk(I, R, ltkIR)
-  , !Ltk(R, I, ltkRI)
+  , !Ltk(A, B, kIR)
+  , !Ltk(B, A, kRI)
   ]
 --[ Init_B()
-  , Create_B(R, ~id)
+  , Create_B(B, ~id)
   ]->
-  [ St_B_1(R, ~id, I, ltkIR, ltkRI)
+  [ St_R_1(B, ~id, A, kIR, kRI)
   ]
 
 
 // 1. A -> B: x
 
 rule I_1:
-  [ St_A_1(I, id, R, ltkIR, ltkRI)
+  [ St_I_1(I, id, R, kIR, kRI)
   , Fr(~x)
   ]
 --[ Send(I,~x)
   , Running(I,R,<'R','I',~x>)
-  //, Running(R,I,<'I','R',~x>)
-  //, Honest(I)
   ]->
-  [ St_A_2(I, id, R, ltkIR, ltkRI, ~x)
+  [ St_I_2(I, id, R, kIR, kRI, ~x)
   , Out(~x)
   ]
 
 rule R_1:
-  [ St_B_1(R, id, I, ltkIR, ltkRI)
+  [ St_R_1(R, id, I, kIR, kRI)
   , In(x)
   ]
 --[ Receive(R,x)
-  //, Running(R,I,<'I','R',x>)
   , Running(I,R,<'R','I',x>)
   ]->
-  [ St_B_2(R, id, I, ltkIR, ltkRI, x)
+  [ St_R_2(R, id, I, kIR, kRI, x)
   ]
 
 // 2. A <- B: y
 
 rule R_2:
-  [ St_B_2(R, id, I, ltkIR, ltkRI, x)
+  [ St_R_2(R, id, I, kIR, kRI, x)
   , Fr(~y)
   ]
 --[ Send(R,~y)
-  //, Running(R,I,<'I','R',~y>)
   , Running(I,R,<'R','I',~y>)
-  //, Honest(R)
   ]->
-  [ St_B_3(R, id, I, ltkIR, ltkRI, x, ~y)
+  [ St_R_3(R, id, I, kIR, kRI, x, ~y)
   , Out(~y)
   ]
 
 rule I_2:
-  [ St_A_2(I, id, R, ltkIR, ltkRI, x)
+  [ St_I_2(I, id, R, kIR, kRI, x)
   , In(y)
   ]
 --[ Receive(I,y)
-  , Running(I,R,<'R','I',y>)
-  , Running(R,I,<'I','R',y>)
   ]->
-  [ St_A_3(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
   
   
-// 3. A -> B: {y}_{Kab}
-
+// 3. A -> B: mac{y}{sIR}
 rule I_3:
-  let kab = kdf(ltkIR, x, y)
-      m   = sign(y, kab)
+  let sIR = kdf(kIR, x, y)
+      m   = mac(y,sIR)
   in
-  [ St_A_3(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
 --[ Send(I, m)
-  //, Running(I,R,<'R','I',kab>)
-  , Running(R,I,<'I','R',kab>)
-  //, Running(I,R,<'R','I',y>)
-  , Honest(I)
-  , Honest(R)
-  , Secret(I,kab)
   ]->
-  [ St_A_4(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
   , Out(m)
   ]
 
 rule R_3:
-  let kab = kdf(ltkIR, x, y)
-      m   = sign(y, kab)
+  let sIR = kdf(kIR, x, y)
+      m   = mac(y, sIR)
   in
-  [ St_B_3(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_3(R, id, I, kIR, kRI, x, y)
   , In(m)
   ]
 --[ Receive(R,m)
-  //, Running(R,I,<'I','R',kab>)
-  , Running(I,R,<'R','I',kab>)
-  , Commit(R,I,<'R','I',kab>)
-  , Secret(R,kab)
-  , Honest(R)
-  , Honest(I)
   ]->
-  [ St_B_4(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
   ]
 
-// 4. A <- B: {x}_{Kab}
-
+// 4. A <- B: mac{x}{sRI}
 rule R_4:
-  let kab = kdf(ltkIR, x, y)
-      m   = sign(x, kab)
+  let sRI = kdf(kRI, x, y)
+      m   = sign(x, sRI)
   in
-  [ St_B_4(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
   ]
 --[ Send(R,m)
+  , Secret(R,sRI)
+  , Secret(R,sIR)
   , Commit(R,I,<'R','I',x>)
   , Commit(R,I,<'R','I',y>)
   , FinishR()
   , Honest(R)
   , Honest(I)
   ]->
-  [ St_B_5(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_5(R, id, I, kIR, kRI, x, y)
   , Out(m)
   ]
   
 rule I_4:
-  let kab = kdf(ltkIR, x, y)
-      m   = sign(x, kab)
+  let sIR = kdf(kIR, x, y)
+      m   = mac{x}sIR
   in
-  [ St_A_4(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_4(I, id, R, kIR, kRI, x, y)
   , In(m)
   ]
 --[ Receive(I,m)
   , Commit(I,R,<'I','R',x>) 
   , Commit(I,R,<'I','R',y>)
-  , Commit(I,R,<'I','R',kab>)
+  , Commit(I,R,<'I','R',sIR>)
   , FinishI()
   , Honest(I)
   , Honest(R)
   ]->
-  [ St_A_5(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_5(I, id, R, kIR, kRI, x, y, sIR)
   ]
 
 // Own lemma
@@ -181,9 +163,9 @@ lemma executable:
    & not (Ex A #j. Reveal(A)@j)
    & (All #j1 #j2 #j3. InitKey()@j1 & InitKey()@j2 & InitKey()@j3 
           ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3) 
-   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
-   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
-   & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
+   & (All #j1 #j2. Init_I()@j1 & Init_I()@j2 ==> #j1 = #j2)
+   & (All #j1 #j2. Init_R()@j1 & Init_R()@j2 ==> #j1 = #j2)
+   & (Ex A B idA idB #i #j. Create_I(A,idA)@i & Create_R(B,idB)@j & not A=B)
    "
 
 
