@@ -1,0 +1,221 @@
+theory P5ab_wanja
+begin
+
+builtins: hashing, symmetric-encryption, diffie-hellman
+
+// Set up symmetric keys
+rule SetupSymmetricKey:
+  [ Fr(~k) ] --[ InitKey() ]-> [ !Ltk($A, $B, ~k) ]
+
+rule Reveal_ltk:
+  [ !Ltk(A, B, k) ] --[ Reveal(A), Reveal(B) ]-> [ Out(k) ]
+
+// user-defined function
+functions: mac/2, map/2
+  
+/*
+  We model the following protocol
+
+  1. A -> B: g^x, enc{s}h(kIR)
+  2. A <- B: g^y
+  3. A -> B: mac{<'I',g^y>}sIR
+  4. A <- B: mac{<'R',g^x>}sIR
+
+  where sIR = h(g^xy)
+ */
+
+rule Init_A:
+  [ Fr(~id)
+  , !Ltk(I, R, kIR)
+  ]
+--[ Init_A()
+  , Create_I(I, ~id) 
+  ]->
+  [ St_I_1(I, ~id, R, kIR)
+  ]
+
+rule Init_B:
+  [ Fr(~id)
+  , !Ltk(I, R, kIR)
+  ]
+--[ Init_B()
+  , Create_R(R, ~id)
+  ]->
+  [ St_R_1(R, ~id, I, kIR)
+  ]
+
+
+//  1. A -> B: g^x, enc{s}h(kIR)
+rule I_1:
+  let g = map(~s,~p)
+      m = <g^~x,senc{~s}h(kIR),~p>
+  in
+  [ St_I_1(I, id, R, kIR)
+  , Fr(~x)
+  , Fr(~s)
+  , Fr(~p)
+  ]
+--[ Send(I,m)
+  ]->
+  [ St_I_2(I, id, R, kIR, ~p, ~s, ~x)
+  , Out(m)
+  ]
+
+rule R_1:
+  let m = <gx,t,p>
+      s = sdec{t}h(kIR)
+      g = map(s,p)
+  in
+  [ St_R_1(R, id, I, kIR)
+  , In(m)
+  ]
+--[ Receive(R,m)
+  ]->
+  [ St_R_2(R, id, I, kIR, p, s, gx)
+  ]
+
+//  2. A <- B: g^y
+rule R_2:
+  let g = map(s,p)
+      m = <g^~y>
+  in
+  [ St_R_2(R, id, I, kIR, p, s, gx)
+  , Fr(~y)
+  ]
+--[ Send(R,m)
+  ]->
+  [ St_R_3(R, id, I, kIR, p, s, gx, ~y)
+  , Out(m)
+  ]
+
+rule I_2:
+  [ St_I_2(I, id, R, kIR, p, s, x)
+  , In(gy)
+  ]
+--[ Receive(I,gy)
+  ]->
+  [ St_I_3(I, id, R, kIR, p, s, x, gy)
+  ]
+  
+  
+//  3. A -> B: mac{<'I',g^y>}sIR
+rule I_3:
+  let sIR = h(gy^x)
+      m = mac{<'I',gy>}sIR
+      g = map(s,p)
+  in
+  [ St_I_3(I, id, R, kIR, p, s, x, gy)
+  ]
+--[ Send(I, m)
+  , Running( I, R, <'R', 'I', g^x, gy, sIR>)
+  ]->
+  [ St_I_4(I, id, R, kIR, p, s, x, gy, sIR)
+  , Out(m)
+  ]
+
+rule R_3:
+  let sIR = h(gy^x)
+      m = mac{<'I',g^y>}sIR
+      g = map(s,p)
+  in
+  [ St_R_3(R, id, I, kIR, p, s, gx, y)
+  , In(m)
+  ]
+--[ Receive(R,m)
+  , Running(R, I, <'I', 'R', gx, g^y, sIR>)
+  ]->
+  [ St_R_4(R, id, I, kIR, p, s, gx, y, sIR)
+  ]
+
+//  4. A <- B: mac{<'R',g^x>}sIR
+rule R_4:
+  let m = mac{<'R',gx>}sIR
+      g = map(s,p)
+  in
+  [ St_R_4(R, id, I, kIR, p, s, gx, y, sIR)
+  ]
+--[ Send(R,m)
+  , Commit(R,I,<'R','I',gx,g^y,sIR>)
+  , Secret(R, sIR)
+  , FinishR()
+  , Honest(I)
+  , Honest(R)
+  ]->
+  [ St_R_5(R, id, I, kIR, p, s, gx, y, sIR)
+  , Out(m)
+  ]
+  
+rule I_4:
+  let m = mac{<'R',g^x>}sIR
+      g = map(s,p)
+  in
+  [ St_I_4(I, id, R, kIR, p, s, x, gy, sIR)
+  , In(m)
+  ]
+--[ Receive(I,m)
+  , Commit(I,R,<'I','R',g^x,gy,sIR>) 
+  , Secret(I, sIR)
+  , FinishI()
+  , Honest(I)
+  , Honest(R)
+  ]->
+  [ St_I_5(I, id, R, kIR, p, s, x, gy, sIR)
+  ]
+
+// Own lemma
+lemma executable:
+  exists-trace
+    "Ex #i #j. FinishI()@i & FinishR()@j 
+   & not (Ex A #j. Reveal(A)@j)
+   & (All #j1 #j2. InitKey()@j1 & InitKey()@j2 ==> #j1 = #j2)
+   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
+   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
+   & (Ex A B idA idB #i #j. Create_I(A,idA)@i & Create_R(B,idB)@j & not A=B)
+   "
+
+
+// Given, immutable lemmas
+
+lemma secrecy:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma secrecy_PFS:
+  "All A x #i. 
+    Secret(A,x) @i ==> 
+    not (Ex #j. K(x)@j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
+
+
+lemma noninjectiveagreementINITIATOR:
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementINITIATOR:
+  "All a b t #i. 
+    Commit(a,b,<'I','R',t>) @i
+    ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
+        & not (Ex a2 b2 #i2. Commit(a2,b2,<'I','R',t>) @i2
+                           & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+
+lemma noninjectiveagreementRESPONDER:
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j)
+        | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+lemma injectiveagreementRESPONDER:
+  "All a b t #i. 
+    Commit(a,b,<'R','I',t>) @i
+    ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
+              & not (Ex a2 b2 #i2. Commit(a2,b2,<'R','I',t>) @i2
+                                 & not (#i2 = #i)))
+              | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
+
+end
