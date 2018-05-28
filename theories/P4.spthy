@@ -1,7 +1,7 @@
 theory P4 
 begin
 
-builtins: signing, hashing, symmetric-encryption
+builtins: hashing, symmetric-encryption
 
 // Set up symmetric keys
 rule SetupSymmetricKey:
@@ -12,6 +12,7 @@ rule Reveal_ltk:
 
 // user-defined function
 functions:
+  mac/2
   kdf/3
   
 /*
@@ -19,8 +20,8 @@ functions:
 
   1. A -> B: x, {s}_{h(K(A,B))}
   2. A <- B: y
-  3. A -> B: {y}_{Kab}
-  4. A <- B: {x}_{Kab}
+  3. A -> B: {<A,x,y>}_{sIR}
+  4. A <- B: {<B,x,y>}_{sIR}
  */
 
 rule Init_A:
@@ -46,16 +47,17 @@ rule Init_B:
   ]
 
 
-// 1. A -> B: x
+// 1. A -> B: x, {s}_{h(K(A,B))}
 
 rule I_1:
-  let m = senc( s, h(ltkIR) )
+  let m = senc( ~s, h(ltkIR) )
   in
   [ St_A_1(I, id, R, ltkIR, ltkRI)
-  , Fr(~x), Fr(~s)
+  , Fr(~x)
+  , Fr(~s)
   ]
 --[ Send(I,<~x,m>)
-  , Running(I,R,<'R','I',~x,~s>)
+  , Running( I ,R, <'R','I',~x,~s> )
   ]->
   [ St_A_2(I, id, R, ltkIR, ltkRI, ~x, ~s)
   , Out(<~x,m>)
@@ -69,7 +71,7 @@ rule R_1:
   , In(<x,m>)
   ]
 --[ Receive(R,<x,m>)
-  , Running(R,I,<'I','R',x,s>)
+  , Running( R, I, <'I', 'R', x, s> )
   ]->
   [ St_B_2(R, id, I, ltkIR, ltkRI, x, s)
   ]
@@ -81,7 +83,7 @@ rule R_2:
   , Fr(~y)
   ]
 --[ Send(R,~y)
-  , Running(R,I,<'I','R',~y>)
+  , Running( R, I, <'I', 'R', ~y> )
   ]->
   [ St_B_3(R, id, I, ltkIR, ltkRI, x, s, ~y)
   , Out(~y)
@@ -92,79 +94,79 @@ rule I_2:
   , In(y)
   ]
 --[ Receive(I,y)
-  , Running(I,R,<'R','I',y>)
+  , Running( I, R, <'R', 'I', y> )
   ]->
   [ St_A_3(I, id, R, ltkIR, ltkRI, x, s, y)
   ]
   
   
-// 3. A -> B: {y}_{Kab}
+// 3. A -> B: {y}_{sIR}
 
 rule I_3:
-  let kab = kdf(s, x, y)
-      m   = sign(y, kab)
+  let sIR = kdf(s, x, y)
+      m   = mac(<'I',x,y>, sIR)
   in
   [ St_A_3(I, id, R, ltkIR, ltkRI, x, s, y)
   ]
 --[ Send(I, m)
-  , Running(I,R,<'R','I',kab>)
-  , Running(I,R,<'R','I',y>)
+  , Running( I, R, <'R','I',sIR> )
+  , Running( I, R, <'R','I',y> )
   , Honest(I)
-  , Secret(I,kab)
   ]->
-  [ St_A_4(I, id, R, ltkIR, ltkRI, x, s, y)
+  [ St_A_4(I, id, R, ltkIR, ltkRI, x, s, y, sIR)
   , Out(m)
   ]
 
 rule R_3:
-  let kab = kdf(s, x, y)
-      m   = sign(y, kab)
+  let sIR = kdf(s, x, y)
+      m   = mac(<'I',x,y>, sIR)
   in
   [ St_B_3(R, id, I, ltkIR, ltkRI, x, s, y)
   , In(m)
   ]
 --[ Receive(R,m)
-  , Running(R,I,<'I','R',kab>)
-  , Commit(R,I,<'R','I',kab>)
-  , Secret(R,kab)
+  , Running( R, I, <'I','R',sIR> )
+  , Commit( R, I, <'R','I',sIR> )
   , Honest(R)
   ]->
-  [ St_B_4(R, id, I, ltkIR, ltkRI, x, s, y)
+  [ St_B_4(R, id, I, ltkIR, ltkRI, x, s, y, sIR)
   ]
 
-// 4. A <- B: {x}_{Kab}
+// 4. A <- B: {x}_{sIR}
 
 rule R_4:
-  let kab = kdf(s, x, y)
-      m   = sign(x, kab)
+  let sIR = kdf(s, x, y)
+      m   = mac(<'R',x,y>, sIR)
   in
-  [ St_B_4(R, id, I, ltkIR, ltkRI, x, s, y)
+  [ St_B_4(R, id, I, ltkIR, ltkRI, x, s, y, sIR)
   ]
 --[ Send(R,m)
   , Commit(R,I,<'R','I',x>)
   , Commit(R,I,<'R','I',y>)
+  , Secret(R, sIR)
   , FinishR()
   , Honest(R)
   ]->
-  [ St_B_5(R, id, I, ltkIR, ltkRI, x, s, y)
+  [ St_B_5(R, id, I, ltkIR, ltkRI, x, s, y, sIR)
   , Out(m)
   ]
   
 rule I_4:
-  let kab = kdf(s, x, y)
-      m   = sign(x, kab)
+  let sIR = kdf(s, x, y)
+      m   = mac(<'R',x,y>, sIR)
   in
-  [ St_A_4(I, id, R, ltkIR, ltkRI, x, s, y)
+  [ St_A_4(I, id, R, ltkIR, ltkRI, x, s, y, sIR)
   , In(m)
   ]
 --[ Receive(I,m)
   , Commit(I,R,<'I','R',x>) 
   , Commit(I,R,<'I','R',y>)
-  , Commit(I,R,<'I','R',kab>)
+  , Commit(I,R,<'I','R',sIR>)
+  , Secret(I, sIR)
   , FinishI()
   , Honest(I)
   ]->
-  [ St_A_5(I, id, R, ltkIR, ltkRI, x, s, y)
+  [ St_A_5(I, id, R, ltkIR, ltkRI, x, s, y, sIR)
   ]
 
 // Own lemma
