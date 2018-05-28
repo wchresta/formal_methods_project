@@ -20,8 +20,8 @@ functions:
 
   1. A -> B: g^x, enc{s}_{h(K(A,B))}
   2. A <- B: g^y
-  3. A -> B: {<A,g^y>}_{k}
-  4. A <- B: {<B,g^x>}_{k}
+  3. A -> B: {g^y}_{k}
+  4. A <- B: {g^x}_{k}
  */
 
 rule Init_A:
@@ -150,6 +150,7 @@ rule R_4:
   , Honest( R )
   , Honest( I )
   , FinishR()
+  , NotEq( gx, gy )
   ]->
   [ St_B_5( R, id, I, ltkIR, ltkRI, p, gx, s, y, k, gy )
   , Out( m )
@@ -167,6 +168,7 @@ rule I_4:
   , Honest( I )
   , Honest( R )
   , FinishI()
+  , NotEq( gx, gy )
   ]->
   [ St_A_5( I, id, R, ltkIR, ltkRI, p, x, s, gy, gx, k )
   ]
@@ -184,6 +186,9 @@ lemma executable:
    & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
    "
 
+restriction NotEq_MustHold:
+  "All #i x y.
+     NotEq( x, y )@i ==> not x = y "
 
 // Given, immutable lemmas
 
