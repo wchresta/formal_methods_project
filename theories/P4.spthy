@@ -50,6 +50,7 @@ rule Init_B:
 
 rule I_1:
   let m = senc( s, h(ltkIR) )
+  in
   [ St_A_1(I, id, R, ltkIR, ltkRI)
   , Fr(~x), Fr(~s)
   ]
@@ -63,6 +64,7 @@ rule I_1:
 rule R_1:
   let m = senc( s, h(ltkIR) )
       s = sdec( senc( s, h(ltkIR) ), h(ltkIR) )
+  in
   [ St_B_1(R, id, I, ltkIR, ltkRI)
   , In(<x,m>)
   ]
