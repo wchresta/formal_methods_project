@@ -89,10 +89,12 @@ rule R_2:
   ]
 
 rule I_2:
+  let m = <gy>
+  in
   [ St_I_2(I, id, R, kIR, p, s, x)
-  , In(gy)
+  , In(m)
   ]
---[ Receive(I,gy)
+--[ Receive(I,m)
   ]->
   [ St_I_3(I, id, R, kIR, p, s, x, gy)
   ]
@@ -101,21 +103,21 @@ rule I_2:
 //  3. A -> B: mac{<'I',g^y>}sIR
 rule I_3:
   let sIR = h(gy^x)
-      m = mac{<'I',gy>}sIR
+      m = <mac{<'I',gy>}sIR>
       g = map(s,p)
   in
   [ St_I_3(I, id, R, kIR, p, s, x, gy)
   ]
 --[ Send(I, m)
-  , Running( I, R, <'R', 'I', g^x, gy, sIR>)
+  , Running(I, R, <'R', 'I', g^x, gy, sIR>)
   ]->
   [ St_I_4(I, id, R, kIR, p, s, x, gy, sIR)
   , Out(m)
   ]
 
 rule R_3:
-  let sIR = h(gy^x)
-      m = mac{<'I',g^y>}sIR
+  let sIR = h(gx^y)
+      m = <mac{<'I',g^y>}sIR>
       g = map(s,p)
   in
   [ St_R_3(R, id, I, kIR, p, s, gx, y)
