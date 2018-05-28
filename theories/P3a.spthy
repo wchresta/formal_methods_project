@@ -17,44 +17,42 @@ functions:
 
   1. A -> B: x
   2. A <- B: y
-  3. A -> B: mac{y}{sIR}
-  4. A <- B: mac{x}{sRI}
+  3. A -> B: mac{<A,x,y>}{sIR}
+  4. A <- B: mac{<B,x,y>}{sRI}
 
   where sIR = kdf(kIR,x,y)
         sRI = kdf(kRI,x,y)
  */
 
-rule Init_A:
+rule Init_I:
   [ Fr(~id)
-  , !Ltk(A, B, kIR)
-  , !Ltk(B, A, kRI)
+  , !Ltk(I, R, kIR)
+  , !Ltk(R, I, kRI)
   ]
---[ Init_A()
-  , Create_A(A, ~id) 
+--[ Init_I()
+  , Create_I(I, ~id) 
   ]->
-  [ St_I_1(A, ~id, B, kIR, kRI)
+  [ St_I_1(I, ~id, R, kIR, kRI)
   ]
 
-rule Init_B:
+rule Init_R:
   [ Fr(~id)
-  , !Ltk(A, B, kIR)
-  , !Ltk(B, A, kRI)
+  , !Ltk(I, R, kIR)
+  , !Ltk(R, I, kRI)
   ]
---[ Init_B()
-  , Create_B(B, ~id)
+--[ Init_R()
+  , Create_R(R, ~id)
   ]->
-  [ St_R_1(B, ~id, A, kIR, kRI)
+  [ St_R_1(R, ~id, I, kIR, kRI)
   ]
 
-
-// 1. A -> B: x
+// A -> B : x
 
 rule I_1:
   [ St_I_1(I, id, R, kIR, kRI)
   , Fr(~x)
   ]
 --[ Send(I,~x)
-  , Running(I,R,<'R','I',~x>)
   ]->
   [ St_I_2(I, id, R, kIR, kRI, ~x)
   , Out(~x)
@@ -64,20 +62,19 @@ rule R_1:
   [ St_R_1(R, id, I, kIR, kRI)
   , In(x)
   ]
---[ Receive(R,x)
-  , Running(I,R,<'R','I',x>)
+--[ Receive(R, x) 
   ]->
   [ St_R_2(R, id, I, kIR, kRI, x)
   ]
 
-// 2. A <- B: y
+// A <- B : y
 
 rule R_2:
   [ St_R_2(R, id, I, kIR, kRI, x)
   , Fr(~y)
   ]
 --[ Send(R,~y)
-  , Running(I,R,<'R','I',~y>)
+  , Running(R,I, <'I','R',x,~y>)
   ]->
   [ St_R_3(R, id, I, kIR, kRI, x, ~y)
   , Out(~y)
@@ -87,28 +84,29 @@ rule I_2:
   [ St_I_2(I, id, R, kIR, kRI, x)
   , In(y)
   ]
---[ Receive(I,y)
+--[ Receive(I, y) 
+  , Running(I,R, <'R','I',x,y>)
   ]->
   [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
-  
-  
-// 3. A -> B: mac{y}{sIR}
+
+// A -> B: mac{<A,x,y>}{sIR}
 rule I_3:
-  let sIR = kdf(kIR, x, y)
-      m   = mac(y,sIR)
+  let sIR = kdf(kIR, x, y )
+      m   = mac{<'I',x,y>}sIR
   in
   [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
---[ Send(I, m)
+--[ Send(I,m)
+  , Running(I,R, <'R','I',sIR>)
   ]->
   [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
   , Out(m)
   ]
 
 rule R_3:
-  let sIR = kdf(kIR, x, y)
-      m   = mac(y, sIR)
+  let sIR = kdf(kIR, x, y )
+      m   = mac{<'I',x,y>}sIR
   in
   [ St_R_3(R, id, I, kIR, kRI, x, y)
   , In(m)
@@ -118,46 +116,48 @@ rule R_3:
   [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
   ]
 
-// 4. A <- B: mac{x}{sRI}
+// A <- B: mac{<B,x,y>}{sRI}
+
 rule R_4:
-  let sRI = kdf(kRI, x, y)
-      m   = sign(x, sRI)
+  let sIR = kdf(kIR, x, y )
+      m   = mac{<'R',x,y>}sIR
   in
   [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
   ]
---[ Send(R,m)
-  , Secret(R,sRI)
-  , Secret(R,sIR)
-  , Commit(R,I,<'R','I',x>)
-  , Commit(R,I,<'R','I',y>)
-  , FinishR()
-  , Honest(R)
+--[ Send(R, m)
+  , Commit(R,I,<'R','I',x,y,sIR>)
+  , Secret(R, sIR)
   , Honest(I)
+  , Honest(R)
+  , FinishR()
   ]->
-  [ St_R_5(R, id, I, kIR, kRI, x, y)
+  [ St_R_5(R, id, I, kIR, kIR, x, y, sIR)
   , Out(m)
   ]
-  
+
 rule I_4:
-  let sIR = kdf(kIR, x, y)
-      m   = mac{x}sIR
+  let sIR = kdf(kIR, x, y )
+      m   = mac{<'R',x,y>}sIR
   in
-  [ St_I_4(I, id, R, kIR, kRI, x, y)
+  [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
   , In(m)
   ]
---[ Receive(I,m)
-  , Commit(I,R,<'I','R',x>) 
-  , Commit(I,R,<'I','R',y>)
-  , Commit(I,R,<'I','R',sIR>)
-  , FinishI()
+--[ Receive(I, m)
+  , Commit(I,R,<'I','R',x,y, sIR>) 
+  , Secret(I, sIR)
   , Honest(I)
   , Honest(R)
+  , FinishI()
   ]->
   [ St_I_5(I, id, R, kIR, kRI, x, y, sIR)
   ]
 
+restriction UniqueLTKs:
+  "All A B #i #j. KeyPair(A,B)@i & KeyPair(A,B)@j ==> #i=#j"
+  
+
 // Own lemma
-lemma executable:
+lemma executable: // verified
   exists-trace
     "Ex #i #j. FinishI()@i & FinishR()@j 
    & not (Ex A #j. Reveal(A)@j)
@@ -168,9 +168,27 @@ lemma executable:
    & (Ex A B idA idB #i #j. Create_I(A,idA)@i & Create_R(B,idB)@j & not A=B)
    "
 
+// Ensure attacker can act as R
+lemma attacker_can_be_R: // verified
+  exists-trace
+    "Ex #i. FinishI()@i
+   & not (Ex #i. Init_R()@i)
+   & (All #j1 #j2. Init_I()@j1 & Init_I()@j2 ==> #j1 = #j2)
+   "
+
+// Ensure attacker can act as I
+lemma attacker_can_be_I: // verified
+  exists-trace
+    "Ex #i. FinishR()@i
+   & not (Ex #i. Init_I()@i)
+   & (All #j1 #j2. Init_R()@j1 & Init_R()@j2 ==> #j1 = #j2)
+   "
+   
+
+
 
 // Given, immutable lemmas
-
+/*
 lemma secrecy:
   "All A x #i. 
     Secret(A,x) @i ==> 
@@ -182,15 +200,15 @@ lemma secrecy_PFS:
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
+*/
 
-
-lemma noninjectiveagreementINITIATOR:
+lemma noninjectiveagreementINITIATOR: // verified
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
     ==> (Ex #j. Running(b,a,<'I','R',t>) @j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma injectiveagreementINITIATOR:
+lemma injectiveagreementINITIATOR: // verified
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
     ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
@@ -199,13 +217,13 @@ lemma injectiveagreementINITIATOR:
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
 
-lemma noninjectiveagreementRESPONDER:
+lemma noninjectiveagreementRESPONDER: // verified
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i
     ==> (Ex #j. Running(b,a,<'R','I',t>) @j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma injectiveagreementRESPONDER:
+lemma injectiveagreementRESPONDER: // verified
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i
     ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
