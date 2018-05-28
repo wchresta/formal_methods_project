@@ -20,8 +20,8 @@ functions:
 
   1. A -> B: g^x, enc{s}_{h(K(A,B))}
   2. A <- B: g^y
-  3. A -> B: {<A,g^y>}_{k}
-  4. A <- B: {<B,g^x>}_{k}
+  3. A -> B: {<'I',g^y>}_{k}
+  4. A <- B: {<'R',g^x>}_{k}
  */
 
 rule Init_A:

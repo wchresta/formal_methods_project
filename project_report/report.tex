@@ -22,6 +22,7 @@ We were able to prove {\em noninjective} and {\em injective agreement} for the i
 
 \subsection{Assignment 1.2, Theory P2}
 We interleave two P1 protocols with eachother, as described in the assignment. The actors have seperate symmetric shared keys $k(A,B)$ and $k(B,A)$ in their initial state.
+Have defined the 
 \subsubsection{Alice and Bob}
 \begin{eqnarray*}
 A \to B        & : & x\\
@@ -48,5 +49,8 @@ A \leftarrow B & : & [x]_{k(A,B)}
 \end{eqnarray*}
 \subsubsection{Results}
 ...
+
+\subsection{Assignment 1.5, Theory P5}
+c) relies on the secrecy for a guard against MitM attack. Same as could be done on DH. Need the secrecy since g^y and g^x are transmitted as plaintext.
 
 \end{document}
