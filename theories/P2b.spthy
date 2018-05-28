@@ -1,4 +1,4 @@
-theory P2a
+theory P2b
 begin
 
 functions: mac/2
@@ -11,12 +11,12 @@ rule Reveal_ltk:
   [ !Ltk(A, B, k) ] --[ Reveal(A), Reveal(B) ]-> [ Out(k) ]
 
 /*
-  We model the following protocol
+  We fix the protocol P2a by including both nonces in the maced responces.
 
   1. A -> B: x
-  1. A <- B: y
-  1. A -> B: {y}_{k(A,B)}
-  1. A <- B: {x}_{k(B,A)}
+  2. A <- B: y
+  3. A -> B: {<x,y>}_{kAB}
+  4. A <- B: {<x,y>}_{kBA}
  */
 
 rule Init_I:
@@ -85,10 +85,9 @@ rule I_2:
   [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
 
-// A -> B : [y]_k(A,B)
-
+// A -> B: {<x,y>}_{kAB)}
 rule I_3:
-  let m = mac{x}kIR
+  let m = mac{<'I',x,y>}kIR
   in
   [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
@@ -99,7 +98,7 @@ rule I_3:
   ]
 
 rule R_3:
-  let m = mac{x}kIR
+  let m = mac{<'I',x,y>}kIR
   in
   [ St_R_3(R, id, I, kIR, kRI, x, y)
   , In(m)
@@ -112,7 +111,7 @@ rule R_3:
 // A <- B : [x]_k(B,A)
 
 rule R_4:
-  let m = mac{y}kRI
+  let m = mac{<'R',x,y>}kRI
   in 
   [ St_R_4(R, id, I, kIR, kRI, x, y)
   ]
@@ -127,7 +126,7 @@ rule R_4:
   ]
 
 rule I_4:
-  let m = mac{y}kRI
+  let m = mac{<'R',x,y>}kRI
   in
   [ St_I_4(I, id, R, kIR, kRI, x, y)
   , In(m)
@@ -191,13 +190,13 @@ lemma secrecy_PFS:
         | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
 */
 
-lemma noninjectiveagreementINITIATOR: // disproved
+lemma noninjectiveagreementINITIATOR: // verified
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
     ==> (Ex #j. Running(b,a,<'I','R',t>) @j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma injectiveagreementINITIATOR: // disproved
+lemma injectiveagreementINITIATOR: // verified
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
     ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
@@ -206,13 +205,13 @@ lemma injectiveagreementINITIATOR: // disproved
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
 
-lemma noninjectiveagreementRESPONDER: //disproved
+lemma noninjectiveagreementRESPONDER: // verified
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i
     ==> (Ex #j. Running(b,a,<'R','I',t>) @j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma injectiveagreementRESPONDER: //disproved
+lemma injectiveagreementRESPONDER: // verified
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i
     ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
