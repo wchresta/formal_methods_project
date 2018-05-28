@@ -18,53 +18,50 @@ functions:
   1. A -> B: x
   2. A <- B: y
   3. A -> B: mac{<'I',y>}sIR
-  4. A <- B: mac{<'R',x>}sRI
+  4. A <- B: mac{<'R',x>}sIR
 
   where sIR = kdf(kIR,x,y)
-        sRI = kdf(kRI,x,y)
  */
 
 rule Init_I:
   [ Fr(~id)
   , !Ltk(I, R, kIR)
-  , !Ltk(R, I, kRI)
   ]
 --[ Init_I()
   , Create_I(I, ~id) 
   ]->
-  [ St_I_1(I, ~id, R, kIR, kRI)
+  [ St_I_1(I, ~id, R, kIR)
   ]
 
 rule Init_R:
   [ Fr(~id)
   , !Ltk(I, R, kIR)
-  , !Ltk(R, I, kRI)
   ]
 --[ Init_R()
   , Create_R(R, ~id)
   ]->
-  [ St_R_1(R, ~id, I, kIR, kRI)
+  [ St_R_1(R, ~id, I, kIR)
   ]
 
 // A -> B : x
 
 rule I_1:
-  [ St_I_1(I, id, R, kIR, kRI)
+  [ St_I_1(I, id, R, kIR)
   , Fr(~x)
   ]
 --[ Send(I,~x)
   ]->
-  [ St_I_2(I, id, R, kIR, kRI, ~x)
+  [ St_I_2(I, id, R, kIR, ~x)
   , Out(~x)
   ]
 
 rule R_1:
-  [ St_R_1(R, id, I, kIR, kRI)
+  [ St_R_1(R, id, I, kIR)
   , In(x)
   ]
 --[ Receive(R, x) 
   ]->
-  [ St_R_2(R, id, I, kIR, kRI, x)
+  [ St_R_2(R, id, I, kIR, x)
   ]
 
 // A <- B : y
@@ -72,49 +69,49 @@ rule R_1:
 rule R_2:
   let sIR = kdf(kIR, x, ~y)
   in
-  [ St_R_2(R, id, I, kIR, kRI, x)
+  [ St_R_2(R, id, I, kIR, x)
   , Fr(~y)
   ]
 --[ Send(R,~y)
   , Running(R,I, <'I','R',x,~y,sIR>)
   ]->
-  [ St_R_3(R, id, I, kIR, kRI, x, ~y, sIR)
+  [ St_R_3(R, id, I, kIR, x, ~y, sIR)
   , Out(~y)
   ]
 
 rule I_2:
   let sIR = kdf(kIR, x, y)
   in
-  [ St_I_2(I, id, R, kIR, kRI, x)
+  [ St_I_2(I, id, R, kIR, x)
   , In(y)
   ]
 --[ Receive(I, y) 
   , Running(I,R, <'R','I',x,y,sIR>)
   ]->
-  [ St_I_3(I, id, R, kIR, kRI, x, y, sIR)
+  [ St_I_3(I, id, R, kIR, x, y, sIR)
   ]
 
 // A -> B: mac{<'I',y>}sIR
 rule I_3:
   let m = mac{<'I',y>}sIR
   in
-  [ St_I_3(I, id, R, kIR, kRI, x, y, sIR)
+  [ St_I_3(I, id, R, kIR, x, y, sIR)
   ]
 --[ Send(I,m)
   ]->
-  [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
+  [ St_I_4(I, id, R, kIR, x, y, sIR)
   , Out(m)
   ]
 
 rule R_3:
   let m = mac{<'I',y>}sIR
   in
-  [ St_R_3(R, id, I, kIR, kRI, x, y, sIR)
+  [ St_R_3(R, id, I, kIR, x, y, sIR)
   , In(m)
   ]
 --[ Receive(R,m)
   ]->
-  [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
+  [ St_R_4(R, id, I, kIR, x, y, sIR)
   ]
 
 // A <- B: mac{<B,x,y>}{sRI}
@@ -122,7 +119,7 @@ rule R_3:
 rule R_4:
   let m = mac{<'R',x>}sIR
   in
-  [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
+  [ St_R_4(R, id, I, kIR, x, y, sIR)
   ]
 --[ Send(R, m)
   , Commit(R,I,<'R','I',x,y,sIR>)
@@ -138,7 +135,7 @@ rule R_4:
 rule I_4:
   let m = mac{<'R',x>}sIR
   in
-  [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
+  [ St_I_4(I, id, R, kIR, x, y, sIR)
   , In(m)
   ]
 --[ Receive(I, m)
@@ -148,7 +145,7 @@ rule I_4:
   , Honest(R)
   , FinishI()
   ]->
-  [ St_I_5(I, id, R, kIR, kRI, x, y, sIR)
+  [ St_I_5(I, id, R, kIR, x, y, sIR)
   ]
 
 restriction UniqueLTKs:
@@ -160,8 +157,7 @@ lemma executable: // verified
   exists-trace
     "Ex #i #j. FinishI()@i & FinishR()@j 
    & not (Ex A #j. Reveal(A)@j)
-   & (All #j1 #j2 #j3. InitKey()@j1 & InitKey()@j2 & InitKey()@j3 
-          ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3) 
+   & (All #j1 #j2. InitKey()@j1 & InitKey()@j2 ==> #j1 = #j2)
    & (All #j1 #j2. Init_I()@j1 & Init_I()@j2 ==> #j1 = #j2)
    & (All #j1 #j2. Init_R()@j1 & Init_R()@j2 ==> #j1 = #j2)
    & (Ex A B idA idB #i #j. Create_I(A,idA)@i & Create_R(B,idB)@j & not A=B)
