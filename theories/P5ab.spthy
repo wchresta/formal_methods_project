@@ -16,7 +16,7 @@ rule SetupP:
 
 // user-defined function
 functions:
-  mac/2
+  mac/2, 
   map/2
   
 /*
@@ -55,17 +55,18 @@ rule Init_B:
 // 1. A -> B: g^x, {s}_{h(K(A,B))}
 
 rule I_1:
-  let g = map( ~s, p )
-      m = senc( ~s, h(ltkIR) )
+  let g  = map( ~s, p )
+      m  = senc( ~s, h(ltkIR) )
+      gx = g^(~x)
   in
   [ St_A_1( I, id, R, ltkIR, ltkRI, p )
   , Fr( ~x )
   , Fr( ~s )
   ]
---[ Send( I, <g^(~x),m> ) 
+--[ Send( I, <gx,m> ) 
   ]->
-  [ St_A_2( I, id, R, ltkIR, ltkRI, p, ~x, ~s, g )
-  , Out( <g^(~x), m> )
+  [ St_A_2( I, id, R, ltkIR, ltkRI, p, ~x, ~s )
+  , Out( <gx, m> )
   ]
   
 rule R_1:
@@ -74,93 +75,91 @@ rule R_1:
       s = sdec( m, h(ltkIR) )
   in
   [ St_B_1( R, id, I, ltkIR, ltkRI, p )
-  , In( <g^x, m> )
+  , In( <gx, m> )
   ]
---[ Receive( R, <g^x,m> )
+--[ Receive( R, <gx,m> )
   ]->
-  [ St_B_2( R, id, I, ltkIR, ltkRI, p, g^x, s, g )
+  [ St_B_2( R, id, I, ltkIR, ltkRI, p, gx, s )
   ]
   
 // 2. A <- B: g^y
 
 rule R_2:
-  let g = map( s, p )
-      k = h( (g^x)^(~y) )
+  let g  = map( s, p )
+      k  = h( (gx)^(~y) )
+      gy = g^(~y)
   in
-  [ St_B_2( R, id, I, ltkIR, ltkRI, p, g^x, s, g )
+  [ St_B_2( R, id, I, ltkIR, ltkRI, p, gx, s )
   , Fr( ~y )
   ]
---[ Send( R, g^(~y) )
+--[ Send( R, gy )
   , Secret( R, k )
   , Honest(R)
   ]->
-  [ St_B_3( R, id, I, ltkIR, ltkRI, p, g^x, s, g, ~y, k )
-  , Out( g^(~y) )
+  [ St_B_3( R, id, I, ltkIR, ltkRI, p, gx, s, ~y, k )
+  , Out( gy )
   ]
   
 rule I_2:
   let g = map( s, p )
-      k = h( (g^y)^x )
+      k = h( gy^x )
   in
-  [ St_A_2( I, id, R, ltkIR, ltkRI, p, x, s, g )
-  , In( g^y )
+  [ St_A_2( I, id, R, ltkIR, ltkRI, p, x, s )
+  , In( gy )
   ]
---[ Receive( I, g^y )
+--[ Receive( I, gy )
   , Secret( I, k )
   , Honest(I)
   ]->
-  [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, g, g^y, k )
+  [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   ]
 
 // 3. A -> B: {g^y}_{kab}
 
 rule I_3:
-  let m = mac( <'I',g^y>, k )
+  let m = mac( <'I',gy>, k )
   in
-  [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, g, g^y, k )
+  [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   ]
 --[ Send( I, m )
   , Running( I, R, <'R','I',k> )
   ]->
-  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, g, g^y, k )
+  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   , Out( m )
   ]
 
 rule R_3:
-  let m = mac( <'I',g^y>, k )
-      g = map( s, p )
+  let m = mac( <'I',gy>, k )
   in
-  [ St_B_3( R, id, I, ltkIR, ltkRI, p, g^x, s, g, y, k )
+  [ St_B_3( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
   , In( m )
   ]
 --[ Receive( R, m )
   , Running( R, I, <'I', 'R', k> )
   ]->
-  [ St_B_4( R, id, I, ltkIR, ltkRI, p, g^x, s, g, y, k )
+  [ St_B_4( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
   ]
 
 // 4. A <- B: {g^x}_{kab}
 
 rule R_4:
-  let m = mac( <'R',g^x>, k )
-      g = map( s, p )
+  let m = mac( <'R',gx>, k )
   in
-  [ St_B_4( R, id, I, ltkIR, ltkRI, p, g^x, s, g, y, k )
+  [ St_B_4( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
   ]
 --[ Send( R, m )
   , Commit( R, I, <'R', 'I', k> )
   , Honest( R )
   , FinishR()
   ]->
-  [ St_B_5( R, id, I, ltkIR, ltkRI, p, g^x, s, g, y, k )
+  [ St_B_5( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
   , Out( m )
   ]
 
 rule I_4:
-  let m = mac( <'R',g^x>, k )
-      g = map( s, p )
+  let m = mac( <'R',gx>, k )
   in
-  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, g, g^y, k )
+  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   , In( m )
   ]
 --[ Receive( I, m )
@@ -168,7 +167,7 @@ rule I_4:
   , Honest(I)
   , FinishI()
   ]->
-  [ St_A_5( I, id, R, ltkIR, ltkRI, p, x, s, g, g^y, k )
+  [ St_A_5( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   ]
 
 // Own lemma
