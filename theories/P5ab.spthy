@@ -9,6 +9,10 @@ rule SetupSymmetricKey:
 
 rule Reveal_ltk:
   [ !Ltk(A, B, k) ] --[ Reveal(A), Reveal(B) ]-> [ Out(k) ]
+  
+// Set up public domain parameter p
+rule SetupP:
+  [ Fr(~p) ] --[ InitP() ]-> [ !P( ~p ) ]
 
 // user-defined function
 functions:
@@ -17,34 +21,153 @@ functions:
 /*
   We model the following protocol
 
-  1. A -> B: {g^x}_{h(K(A,B))}, p, {s}_{h(K(A,B))}
-  2. A <- B: {g^y}_{h(K(B,A))}
-  3. A -> B: 
+  1. A -> B: g^x, {s}_{h(K(A,B))}
+  2. A <- B: g^y
+  3. A -> B: {g^y}_{kab}
+  4. A <- B: {g^x}_{kab}
  */
 
 rule Init_A:
   [ Fr(~id)
   , !Ltk(I, R, ltkIR)
   , !Ltk(R, I, ltkRI)
+  , !P(p)
   ]
 --[ Init_A()
   , Create_A(I, ~id) 
   ]->
-  [ St_A_1(I, ~id, R, ltkIR, ltkRI)
+  [ St_A_1( I, ~id, R, ltkIR, ltkRI, p )
   ]
 
 rule Init_B:
   [ Fr(~id)
   , !Ltk(I, R, ltkIR)
   , !Ltk(R, I, ltkRI)
+  , !P(p)
   ]
 --[ Init_B()
   , Create_B(R, ~id)
   ]->
-  [ St_B_1(R, ~id, I, ltkIR, ltkRI)
+  [ St_B_1( R, ~id, I, ltkIR, ltkRI, p )
   ]
 
+// 1. A -> B: g^x, p, {s}_{h(K(A,B))}
 
+rule I_1:
+  let g = map( ~s, p )
+      m = senc( ~s, h(ltkIR) )
+  in
+  [ St_A_1( I, id, R, ltkIR, ltkRI, p )
+  , Fr( ~x )
+  , Fr( ~s )
+  ]
+--[ Send( I, <g^(~x),m> ) 
+  ]->
+  [ St_A_2( I, id, R, ltkIR, ltkRI, p, ~x, ~s )
+  , Out( <g^(~x), m> )
+  ]
+  
+rule R_1:
+  let g = map( s, p )
+      m = senc( s, h(ltkIR) )
+      s = sdec( m, h(ltkIR) )
+  in
+  [ St_B_1( R, id, I, ltkIR, ltkRI, p )
+  , In( <g^x, m> )
+  ]
+--[ Receive( R, <g^x,m> )
+  ]->
+  [ St_B_2( R, id, I, ltkIR, ltkRI, p, g^x, s )
+  ]
+  
+// 2. A <- B: g^y
+
+rule R_2:
+  let g = map( s, p )
+      k = h( (g^x)^(~y) )
+  in
+  [ St_B_2( R, id, I, ltkIR, ltkRI, p, g^x, s )
+  , Fr( ~y )
+  ]
+--[ Send( R, g^(~y) )
+  , Secret( R, k )
+  , Honest(R)
+  ]->
+  [ St_B_3( R, id, I, ltkIR, ltkRI, p, g^x, s, ~y, k )
+  , Out( g^(~y) )
+  ]
+  
+rule I_2:
+  let g = map( s, p )
+      k = h( (g^y)^x )
+  in
+  [ St_A_2( I, id, R, ltkIR, ltkRI, p, x, s )
+  , In( g^y )
+  ]
+--[ Receive( I, g^y )
+  , Secret( I, k )
+  , Honest(I)
+  ]->
+  [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, g^y, k )
+  ]
+
+// 3. A -> B: {g^y}_{kab}
+
+rule I_3:
+  let m = sign( g^y, k )
+  in
+  [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, g^y, k )
+  ]
+--[ Send( I, m )
+  ]->
+  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, g^y, k )
+  , Out( m )
+  ]
+
+rule R_3:
+  let m = sign( g^y, k )
+      g = map( s, p )
+  in
+  [ St_B_3( R, id, I, ltkIR, ltkRI, p, g^x, s, y, k )
+  , In( m )
+  ]
+--[ Receive( R, m )
+  , Running( I, R, <'R', 'I', k> )
+  ]->
+  [ St_B_4( R, id, I, ltkIR, ltkRI, p, g^x, s, y, k )
+  ]
+
+// 4. A <- B: {g^x}_{kab}
+
+rule R_4:
+  let m = sign( g^x, k )
+      g = map( s, p )
+  in
+  [ St_B_4( R, id, I, ltkIR, ltkRI, p, g^x, s, y, k )
+  ]
+--[ Send( R, m )
+  , Commit( R, I, <'R', 'I', k> )
+  , Honest( R )
+  , FinishR()
+  ]->
+  [ St_B_5( R, id, I, ltkIR, ltkRI, p, g^x, s, y, k )
+  , Out( m )
+  ]
+
+rule I_4:
+  let m = sign( g^x, k )
+      g = map( s, p )
+  in
+  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, g^y, k )
+  , In( m )
+  ]
+--[ Receive( I, m )
+  , Commit( I, R, <'I', 'R', k> )
+  , Honest(I)
+  , FinishI()
+  ]->
+  [ St_A_5( I, id, R, ltkIR, ltkRI, p, x, s, g^y, k )
+  ]
 
 // Own lemma
 lemma executable:
@@ -52,7 +175,9 @@ lemma executable:
     "Ex #i #j. FinishI()@i & FinishR()@j 
    & not (Ex A #j. Reveal(A)@j)
    & (All #j1 #j2 #j3. InitKey()@j1 & InitKey()@j2 & InitKey()@j3 
-          ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3) 
+          ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3)
+   & (All #j1 #j2 #j3. InitP()@j1 & InitP()@j2 & InitP()@j3
+          ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3)
    & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
    & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
    & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
