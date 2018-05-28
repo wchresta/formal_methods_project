@@ -14,9 +14,9 @@ rule Reveal_ltk:
   We model the following protocol
 
   1. A -> B: x
-  1. A <- B: y
-  1. A -> B: {y}_{k(A,B)}
-  1. A <- B: {x}_{k(B,A)}
+  2. A <- B: y
+  3. A -> B: {y}_{k(A,B)}
+  4. A <- B: {x}_{k(B,A)}
  */
 
 rule Init_I:
@@ -88,7 +88,7 @@ rule I_2:
 // A -> B : [y]_k(A,B)
 
 rule I_3:
-  let m = mac{x}kIR
+  let m = mac{y}kIR
   in
   [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
@@ -99,7 +99,7 @@ rule I_3:
   ]
 
 rule R_3:
-  let m = mac{x}kIR
+  let m = mac{y}kIR
   in
   [ St_R_3(R, id, I, kIR, kRI, x, y)
   , In(m)
@@ -112,7 +112,7 @@ rule R_3:
 // A <- B : [x]_k(B,A)
 
 rule R_4:
-  let m = mac{y}kRI
+  let m = mac{x}kRI
   in 
   [ St_R_4(R, id, I, kIR, kRI, x, y)
   ]
@@ -127,7 +127,7 @@ rule R_4:
   ]
 
 rule I_4:
-  let m = mac{y}kRI
+  let m = mac{x}kRI
   in
   [ St_I_4(I, id, R, kIR, kRI, x, y)
   , In(m)
