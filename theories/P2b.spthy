@@ -15,8 +15,8 @@ rule Reveal_ltk:
 
   1. A -> B: x
   2. A <- B: y
-  3. A -> B: {<x,y>}_{kAB}
-  4. A <- B: {<x,y>}_{kBA}
+  3. A -> B: {<'I',x,y>}_{kAB}
+  4. A <- B: {<'R',x,y>}_{kBA}
  */
 
 rule Init_I:
