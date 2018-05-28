@@ -3,7 +3,7 @@ begin
 
 // Set up symmetric keys
 rule SetupSymmetricKey:
-  [ Fr(~k) ] --[ InitKey() ]-> [ !Ltk($A, $B, ~k) ]
+  [ Fr(~k) ] --[ InitKey(), KeyPair($A,$B) ]-> [ !Ltk($A, $B, ~k) ]
 
 rule Reveal_ltk:
   [ !Ltk(A, B, k) ] --[ Reveal(A), Reveal(B) ]-> [ Out(k) ]
@@ -17,8 +17,8 @@ functions:
 
   1. A -> B: x
   2. A <- B: y
-  3. A -> B: mac{<A,x,y>}{sIR}
-  4. A <- B: mac{<B,x,y>}{sRI}
+  3. A -> B: mac{<'I',y>}sIR
+  4. A <- B: mac{<'R',x>}sRI
 
   where sIR = kdf(kIR,x,y)
         sRI = kdf(kRI,x,y)
@@ -70,45 +70,46 @@ rule R_1:
 // A <- B : y
 
 rule R_2:
+  let sIR = kdf(kIR, x, ~y)
+  in
   [ St_R_2(R, id, I, kIR, kRI, x)
   , Fr(~y)
   ]
 --[ Send(R,~y)
-  , Running(R,I, <'I','R',x,~y>)
+  , Running(R,I, <'I','R',x,~y,sIR>)
   ]->
-  [ St_R_3(R, id, I, kIR, kRI, x, ~y)
+  [ St_R_3(R, id, I, kIR, kRI, x, ~y, sIR)
   , Out(~y)
   ]
 
 rule I_2:
+  let sIR = kdf(kIR, x, y)
+  in
   [ St_I_2(I, id, R, kIR, kRI, x)
   , In(y)
   ]
 --[ Receive(I, y) 
-  , Running(I,R, <'R','I',x,y>)
+  , Running(I,R, <'R','I',x,y,sIR>)
   ]->
-  [ St_I_3(I, id, R, kIR, kRI, x, y)
+  [ St_I_3(I, id, R, kIR, kRI, x, y, sIR)
   ]
 
-// A -> B: mac{<A,x,y>}{sIR}
+// A -> B: mac{<'I',y>}sIR
 rule I_3:
-  let sIR = kdf(kIR, x, y )
-      m   = mac{<'I',x,y>}sIR
+  let m = mac{<'I',y>}sIR
   in
-  [ St_I_3(I, id, R, kIR, kRI, x, y)
+  [ St_I_3(I, id, R, kIR, kRI, x, y, sIR)
   ]
 --[ Send(I,m)
-  , Running(I,R, <'R','I',sIR>)
   ]->
   [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
   , Out(m)
   ]
 
 rule R_3:
-  let sIR = kdf(kIR, x, y )
-      m   = mac{<'I',x,y>}sIR
+  let m = mac{<'I',y>}sIR
   in
-  [ St_R_3(R, id, I, kIR, kRI, x, y)
+  [ St_R_3(R, id, I, kIR, kRI, x, y, sIR)
   , In(m)
   ]
 --[ Receive(R,m)
@@ -119,8 +120,7 @@ rule R_3:
 // A <- B: mac{<B,x,y>}{sRI}
 
 rule R_4:
-  let sIR = kdf(kIR, x, y )
-      m   = mac{<'R',x,y>}sIR
+  let m = mac{<'R',x>}sIR
   in
   [ St_R_4(R, id, I, kIR, kRI, x, y, sIR)
   ]
@@ -136,14 +136,13 @@ rule R_4:
   ]
 
 rule I_4:
-  let sIR = kdf(kIR, x, y )
-      m   = mac{<'R',x,y>}sIR
+  let m = mac{<'R',x>}sIR
   in
   [ St_I_4(I, id, R, kIR, kRI, x, y, sIR)
   , In(m)
   ]
 --[ Receive(I, m)
-  , Commit(I,R,<'I','R',x,y, sIR>) 
+  , Commit(I,R,<'I','R',x,y,sIR>)
   , Secret(I, sIR)
   , Honest(I)
   , Honest(R)
@@ -188,19 +187,17 @@ lemma attacker_can_be_I: // verified
 
 
 // Given, immutable lemmas
-/*
-lemma secrecy:
+lemma secrecy: // verified
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma secrecy_PFS:
+lemma secrecy_PFS: // disproven
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
-*/
 
 lemma noninjectiveagreementINITIATOR: // verified
   "All a b t #i. 
