@@ -12,17 +12,17 @@ rule Reveal_ltk:
   
 // Set up public domain parameter p
 rule SetupP:
-  [ Fr(~p) ] --[ InitP() ]-> [ !P( ~p ) ]
+  [ Fr(~p) ] --[ InitP() ]-> [ !P( ~p ), Out( ~p ) ]
 
 // user-defined function
 functions:
-  mac/2, 
+  mac/2,
   map/2
-  
+
 /*
   We model the following protocol
 
-  1. A -> B: g^x, {s}_{h(K(A,B))}
+  1. A -> B: g^x, enc{s}_{h(K(A,B))}
   2. A <- B: g^y
   3. A -> B: {<A,g^x,g^y>}_{sIR}
   4. A <- B: {<B,g^x,g^y>}_{sIR}
@@ -66,13 +66,13 @@ rule I_1:
 --[ Send( I, <gx,m> ) 
   ]->
   [ St_A_2( I, id, R, ltkIR, ltkRI, p, ~x, ~s )
-  , Out( <gx, m> )
+  , Out( <gx,m> )
   ]
   
 rule R_1:
-  let g = map( s, p )
-      m = senc( s, h(ltkIR) )
-      s = sdec( m, h(ltkIR) )
+  let g  = map( s, p )
+      m  = senc( s, h(ltkIR) )
+      s  = sdec( m, h(ltkIR) )
   in
   [ St_B_1( R, id, I, ltkIR, ltkRI, p )
   , In( <gx, m> )
@@ -101,8 +101,8 @@ rule R_2:
   ]
   
 rule I_2:
-  let g = map( s, p )
-      k = h( gy^x )
+  let g  = map( s, p )
+      k  = h( gy^x )
   in
   [ St_A_2( I, id, R, ltkIR, ltkRI, p, x, s )
   , In( gy )
@@ -114,17 +114,19 @@ rule I_2:
   [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   ]
 
-// 3. A -> B: {g^y}_{kab}
+// 3. A -> B: {<'I',g^y>}_{kab}
 
 rule I_3:
-  let m = mac( <'I',gy>, k )
+  let m  = mac( <'I',gy>, k )
+      g  = map( s, p )
+      gx = g^x
   in
   [ St_A_3( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
   ]
 --[ Send( I, m )
-  , Running( I, R, <'R','I',k> )
+  , Running( I, R, <'R', 'I', k, gy, gx> )
   ]->
-  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
+  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, gy, k, gx )
   , Out( m )
   ]
 
@@ -135,39 +137,39 @@ rule R_3:
   , In( m )
   ]
 --[ Receive( R, m )
-  , Running( R, I, <'I', 'R', k> )
+  , Running( R, I, <'I', 'R', k, gy, gx> )
   ]->
-  [ St_B_4( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
+  [ St_B_4( R, id, I, ltkIR, ltkRI, p, gx, s, y, k, gy )
   ]
 
-// 4. A <- B: {g^x}_{kab}
+// 4. A <- B: {<'R',g^x>}_{kab}
 
 rule R_4:
-  let m = mac( <'R',gx>, k )
+  let m  = mac( <'R',gx>, k )
   in
-  [ St_B_4( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
+  [ St_B_4( R, id, I, ltkIR, ltkRI, p, gx, s, y, k, gy )
   ]
 --[ Send( R, m )
-  , Commit( R, I, <'R', 'I', k> )
+  , Commit( R, I, <'R', 'I', k, gy, gx> )
   , Honest( R )
   , FinishR()
   ]->
-  [ St_B_5( R, id, I, ltkIR, ltkRI, p, gx, s, y, k )
+  [ St_B_5( R, id, I, ltkIR, ltkRI, p, gx, s, y, k, gy )
   , Out( m )
   ]
 
 rule I_4:
   let m = mac( <'R',gx>, k )
   in
-  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
+  [ St_A_4( I, id, R, ltkIR, ltkRI, p, x, s, gy, k, gx )
   , In( m )
   ]
 --[ Receive( I, m )
-  , Commit( I, R, <'I', 'R', k> )
+  , Commit( I, R, <'I', 'R', k, gy, gx> )
   , Honest(I)
   , FinishI()
   ]->
-  [ St_A_5( I, id, R, ltkIR, ltkRI, p, x, s, gy, k )
+  [ St_A_5( I, id, R, ltkIR, ltkRI, p, x, s, gy, k, gx )
   ]
 
 // Own lemma
