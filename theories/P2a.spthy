@@ -1,7 +1,7 @@
 theory P2a
 begin
 
-builtins: signing
+functions: mac/2
 
 // Set up symmetric keys
 rule SetupSymmetricKey:
@@ -19,102 +19,102 @@ rule Reveal_ltk:
   1. A <- B: {x}_{k(B,A)}
  */
 
-rule Init_A:
+rule Init_I:
   [ Fr(~id)
-  , !Ltk(I, R, ltkIR)
-  , !Ltk(R, I, ltkRI)
+  , !Ltk(I, R, kIR)
+  , !Ltk(R, I, kRI)
   ]
---[ Init_A()
-  , Create_A(I, ~id) 
+--[ Init_I()
+  , Create_I(I, ~id) 
   ]->
-  [ St_A_1(I, ~id, R, ltkIR, ltkRI)
+  [ St_I_1(I, ~id, R, kIR, kRI)
   ]
 
-rule Init_B:
+rule Init_R:
   [ Fr(~id)
-  , !Ltk(I, R, ltkIR)
-  , !Ltk(R, I, ltkRI)
+  , !Ltk(I, R, kIR)
+  , !Ltk(R, I, kRI)
   ]
---[ Init_B()
-  , Create_B(R, ~id)
+--[ Init_R()
+  , Create_R(R, ~id)
   ]->
-  [ St_B_1(R, ~id, I, ltkIR, ltkRI)
+  [ St_R_1(R, ~id, I, kIR, kRI)
   ]
 
 // A -> B : x
 
 rule I_1:
-  [ St_A_1(I, id, R, ltkIR, ltkRI)
+  [ St_I_1(I, id, R, kIR, kRI)
   , Fr(~x)
   ]
 --[ 
   ]->
-  [ St_A_2(I, id, R, ltkIR, ltkRI, ~x)
+  [ St_I_2(I, id, R, kIR, kRI, ~x)
   , Out(~x)
   ]
 
 rule R_1:
-  [ St_B_1(R, id, I, ltkIR, ltkRI)
+  [ St_R_1(R, id, I, kIR, kRI)
   , In(x)
   ]
 --[ Receive(R, x) 
   ]->
-  [ St_B_2(R, id, I, ltkIR, ltkRI, x)
+  [ St_R_2(R, id, I, kIR, kRI, x)
   ]
 
 // A <- B : y
 
 rule R_2:
-  [ St_B_2(R, id, I, ltkIR, ltkRI, x)
+  [ St_R_2(R, id, I, kIR, kRI, x)
   , Fr(~y)
   ]
 --[ Send(R,~y)
-  , Running(I,R, <'R','I',x,~y>)
+  , Running(R,I, <'I','R',x,~y>)
   ]->
-  [ St_B_3(R, id, I, ltkIR, ltkRI, x, ~y)
+  [ St_R_3(R, id, I, kIR, kRI, x, ~y)
   , Out(~y)
   ]
 
 rule I_2:
-  [ St_A_2(I, id, R, ltkIR, ltkRI, x)
+  [ St_I_2(I, id, R, kIR, kRI, x)
   , In(y)
   ]
 --[ Receive(I, y) 
-  , Running(R,I, <'I','R',x,y>)
+  , Running(I,R, <'R','I',x,y>)
   ]->
-  [ St_A_3(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
 
 // A -> B : [y]_k(A,B)
 
 rule I_3:
-  let m = sign(y, ltkIR)
+  let m = mac{y}kIR
   in
-  [ St_A_3(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_3(I, id, R, kIR, kRI, x, y)
   ]
 --[ Send(I,m)
   ]->
-  [ St_A_4(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_4(I, id, R, kIR, kRI, x, y)
   , Out(m)
   ]
 
 rule R_3:
-  let m = sign(y, ltkIR)
+  let m = mac{y}kIR
   in
-  [ St_B_3(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_3(R, id, I, kIR, kRI, x, y)
   , In(m)
   ]
 --[ Receive(R,m)
   ]->
-  [ St_B_4(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_4(R, id, I, kIR, kRI, x, y)
   ]
 
 // A <- B : [x]_k(B,A)
 
 rule R_4:
-  let m = sign(x, ltkRI)
+  let m = mac{x}kRI
   in 
-  [ St_B_4(R, id, I, ltkIR, ltkRI, x, y)
+  [ St_R_4(R, id, I, kIR, kRI, x, y)
   ]
 --[ Send(R, m)
   , Commit(R,I,<'R','I',x,y>)
@@ -122,14 +122,14 @@ rule R_4:
   , Honest(R)
   , FinishR()
   ]->
-  [ St_B_5(R, id, I, ltkIR, ltkIR, x, y)
+  [ St_R_5(R, id, I, kIR, kIR, x, y)
   , Out(m)
   ]
 
 rule I_4:
-  let m = sign(x, ltkRI)
+  let m = mac{x}kRI
   in
-  [ St_A_4(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_4(I, id, R, kIR, kRI, x, y)
   , In(m)
   ]
 --[ Receive(I, m)
@@ -138,9 +138,11 @@ rule I_4:
   , Honest(R)
   , FinishI()
   ]->
-  [ St_A_5(I, id, R, ltkIR, ltkRI, x, y)
+  [ St_I_5(I, id, R, kIR, kRI, x, y)
   ]
 
+restriction:
+  
 
 // Own lemma
 lemma executable: // verified
@@ -149,25 +151,25 @@ lemma executable: // verified
    & not (Ex A #j. Reveal(A)@j)
    & (All #j1 #j2 #j3. InitKey()@j1 & InitKey()@j2 & InitKey()@j3 
           ==> #j1 = #j2 | #j1 = #j3 | #j2 = #j3) 
-   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
-   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
-   & (Ex A B idA idB #i #j. Create_A(A,idA)@i & Create_B(B,idB)@j & not A=B)
+   & (All #j1 #j2. Init_I()@j1 & Init_I()@j2 ==> #j1 = #j2)
+   & (All #j1 #j2. Init_R()@j1 & Init_R()@j2 ==> #j1 = #j2)
+   & (Ex A B idA idB #i #j. Create_I(A,idA)@i & Create_R(B,idB)@j & not A=B)
    "
 
 // Ensure attacker can act as R
 lemma attacker_can_be_R: // verified
   exists-trace
     "Ex #i. FinishI()@i
-   & not (Ex #i. Init_B()@i)
-   & (All #j1 #j2. Init_A()@j1 & Init_A()@j2 ==> #j1 = #j2)
+   & not (Ex #i. Init_R()@i)
+   & (All #j1 #j2. Init_I()@j1 & Init_I()@j2 ==> #j1 = #j2)
    "
 
 // Ensure attacker can act as I
 lemma attacker_can_be_I: // verified
   exists-trace
     "Ex #i. FinishR()@i
-   & not (Ex #i. Init_A()@i)
-   & (All #j1 #j2. Init_B()@j1 & Init_B()@j2 ==> #j1 = #j2)
+   & not (Ex #i. Init_I()@i)
+   & (All #j1 #j2. Init_R()@j1 & Init_R()@j2 ==> #j1 = #j2)
    "
    
 

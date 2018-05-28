@@ -2,11 +2,8 @@ theory P1 begin
 
 // Function signature and definition of the equational theory E
 
-functions: fst/1, pair/2, pk/1, sign/2, snd/1, true/0, verify/3
-equations:
-    fst(<x.1, x.2>) = x.1,
-    snd(<x.1, x.2>) = x.2,
-    verify(sign(x.1, x.2), x.1, pk(x.2)) = true
+functions: fst/1, mac/2, pair/2, snd/1
+equations: fst(<x.1, x.2>) = x.1, snd(<x.1, x.2>) = x.2
 
 rule (modulo E) SetupSymmetricKey:
    [ Fr( ~k ) ] --[ InitKey( ) ]-> [ !Ltk( $A, $B, ~k ) ]
@@ -18,51 +15,51 @@ rule (modulo E) Reveal_ltk:
 
   /* has exactly the trivial AC variant */
 
-rule (modulo E) Init_A:
+rule (modulo E) Init_I:
    [ Fr( ~id ), !Ltk( I, R, ltkIR ), !Ltk( R, I, ltkRI ) ]
-  --[ Init_A( ), Create_A( I, ~id ) ]->
-   [ St_A_1( I, ~id, R, ltkIR, ltkRI ) ]
+  --[ Init_I( ), Create_I( I, ~id ) ]->
+   [ St_I_1( I, ~id, R, ltkIR, ltkRI ) ]
 
   /* has exactly the trivial AC variant */
 
-rule (modulo E) Init_B:
+rule (modulo E) Init_R:
    [ Fr( ~id ), !Ltk( I, R, ltkIR ), !Ltk( R, I, ltkRI ) ]
-  --[ Init_B( ), Create_B( R, ~id ) ]->
-   [ St_B_1( R, ~id, I, ltkIR, ltkRI ) ]
+  --[ Init_R( ), Create_R( R, ~id ) ]->
+   [ St_R_1( R, ~id, I, ltkIR, ltkRI ) ]
 
   /* has exactly the trivial AC variant */
 
 rule (modulo E) I_1:
-   [ St_A_1( I, id, R, ltkIR, ltkRI ), Fr( ~x ) ]
+   [ St_I_1( I, id, R, ltkIR, ltkRI ), Fr( ~x ) ]
   --[ Send( I, ~x ), Running( I, R, <'R', 'I', ~x> ) ]->
-   [ St_A_2( I, id, R, ltkIR, ltkRI, ~x ), Out( ~x ) ]
+   [ St_I_2( I, id, R, ltkIR, ltkRI, ~x ), Out( ~x ) ]
 
   /* has exactly the trivial AC variant */
 
 rule (modulo E) R_1:
-   [ St_B_1( R, id, I, ltkIR, ltkRI ), In( x ) ]
-  --[
-  Receive( R, x ), Running( R, I, <'I', 'R', x> ),
-  Commit( R, I, <'R', 'I', x> ), Honest( R )
-  ]->
-   [ St_B_2( R, id, I, ltkIR, ltkRI, x ) ]
+   [ St_R_1( R, id, I, ltkIR, ltkRI ), In( x ) ]
+  --[ Receive( R, x ), Running( R, I, <'I', 'R', x> ) ]->
+   [ St_R_2( R, id, I, ltkIR, ltkRI, x ) ]
 
   /* has exactly the trivial AC variant */
 
 rule (modulo E) R_2:
-   [ St_B_2( R, id, I, ltkIR, ltkRI, x ) ]
-  --[ Send( R, sign(x, ltkRI) ), FinishR( ) ]->
-   [ St_B_3( R, id, I, ltkIR, ltkRI, x ), Out( sign(x, ltkRI) ) ]
+   [ St_R_2( R, id, I, ltkIR, ltkRI, x ) ]
+  --[
+  Send( R, mac(x, ltkRI) ), Commit( R, I, <'R', 'I', x> ),
+  Honest( R ), FinishR( )
+  ]->
+   [ St_R_3( R, id, I, ltkIR, ltkRI, x ), Out( mac(x, ltkRI) ) ]
 
   /* has exactly the trivial AC variant */
 
 rule (modulo E) I_2:
-   [ St_A_2( I, id, R, ltkIR, ltkRI, x ), In( sign(x, ltkRI) ) ]
+   [ St_I_2( I, id, R, ltkIR, ltkRI, x ), In( mac(x, ltkRI) ) ]
   --[
-  Receive( I, sign(x, ltkRI) ), Commit( I, R, <'I', 'R', x> ),
-  FinishI( ), Honest( I )
+  Receive( I, mac(x, ltkRI) ), Commit( I, R, <'I', 'R', x> ),
+  Honest( I ), FinishI( )
   ]->
-   [ St_A_3( I, id, R, ltkIR, ltkRI, x ) ]
+   [ St_I_3( I, id, R, ltkIR, ltkRI, x ) ]
 
   /* has exactly the trivial AC variant */
 
@@ -75,11 +72,11 @@ lemma executable:
          (((InitKey( ) @ #j1) ∧ (InitKey( ) @ #j2)) ∧ (InitKey( ) @ #j3)) ⇒
          (((#j1 = #j2) ∨ (#j1 = #j3)) ∨ (#j2 = #j3)))) ∧
       (∀ #j1 #j2.
-        ((Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+        ((Init_I( ) @ #j1) ∧ (Init_I( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
      (∀ #j1 #j2.
-       ((Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
+       ((Init_R( ) @ #j1) ∧ (Init_R( ) @ #j2)) ⇒ (#j1 = #j2))) ∧
     (∃ A B idA idB #i.1 #j.1.
-      ((Create_A( A, idA ) @ #i.1) ∧ (Create_B( B, idB ) @ #j.1)) ∧
+      ((Create_I( A, idA ) @ #i.1) ∧ (Create_R( B, idB ) @ #j.1)) ∧
       (¬(A = B)))"
 /*
 guarded formula characterizing all satisfying traces:
@@ -91,23 +88,23 @@ guarded formula characterizing all satisfying traces:
     (InitKey( ) @ #j1) ∧ (InitKey( ) @ #j2) ∧ (InitKey( ) @ #j3)
    ⇒
     ((#j1 = #j2) ∨ (#j1 = #j3) ∨ (#j2 = #j3))) ∧
-  (∀ #j1 #j2. (Init_A( ) @ #j1) ∧ (Init_A( ) @ #j2) ⇒ #j1 = #j2) ∧
-  (∀ #j1 #j2. (Init_B( ) @ #j1) ∧ (Init_B( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∀ #j1 #j2. (Init_I( ) @ #j1) ∧ (Init_I( ) @ #j2) ⇒ #j1 = #j2) ∧
+  (∀ #j1 #j2. (Init_R( ) @ #j1) ∧ (Init_R( ) @ #j2) ⇒ #j1 = #j2) ∧
   (∃ A B idA idB #i.1 #j.1.
-    (Create_A( A, idA ) @ #i.1) ∧ (Create_B( B, idB ) @ #j.1)
+    (Create_I( A, idA ) @ #i.1) ∧ (Create_R( B, idB ) @ #j.1)
    ∧
     ¬(A = B))"
 */
 simplify
-solve( St_A_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
+solve( St_I_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
   case I_1
-  solve( St_B_2( R, id.1, I, ltkIR, ltkRI, x.1 ) ▶₀ #j )
+  solve( St_R_2( R, id.1, I, ltkIR, ltkRI, x.1 ) ▶₀ #j )
     case R_1
     solve( (#vr.1 = #vr.2)  ∥ (#vr.1 = #vr.4)  ∥ (#vr.2 = #vr.4) )
       case case_2
       solve( (#vr.1 = #vr.2)  ∥ (#vr.1 = #vr.4)  ∥ (#vr.2 = #vr.4) )
         case case_3
-        solve( !KU( sign(~x, ~k.1) ) @ #vk )
+        solve( !KU( mac(~x, ~k.1) ) @ #vk )
           case R_2
           solve( !KU( ~x ) @ #vk.1 )
             case I_1
@@ -121,16 +118,16 @@ qed
 
 lemma attacker_can_be_R:
   exists-trace
-  "∃ #i. (FinishI( ) @ #i) ∧ (¬(∃ #i.1. Init_B( ) @ #i.1))"
+  "∃ #i. (FinishI( ) @ #i) ∧ (¬(∃ #i.1. Init_R( ) @ #i.1))"
 /*
 guarded formula characterizing all satisfying traces:
-"∃ #i. (FinishI( ) @ #i) ∧ ∀ #i.1. (Init_B( ) @ #i.1) ⇒ ⊥"
+"∃ #i. (FinishI( ) @ #i) ∧ ∀ #i.1. (Init_R( ) @ #i.1) ⇒ ⊥"
 */
 simplify
-solve( St_A_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
+solve( St_I_2( I, id, R, ltkIR, ltkRI, x ) ▶₀ #i )
   case I_1
-  solve( !KU( sign(~x, ~k.1) ) @ #vk )
-    case c_sign
+  solve( !KU( mac(~x, ~k.1) ) @ #vk )
+    case c_mac
     solve( !KU( ~k.1 ) @ #vk.2 )
       case Reveal_ltk
       solve( !KU( ~x ) @ #vk.2 )
@@ -143,13 +140,13 @@ qed
 
 lemma attacker_can_be_I:
   exists-trace
-  "∃ #i. (FinishR( ) @ #i) ∧ (¬(∃ #i.1. Init_A( ) @ #i.1))"
+  "∃ #i. (FinishR( ) @ #i) ∧ (¬(∃ #i.1. Init_I( ) @ #i.1))"
 /*
 guarded formula characterizing all satisfying traces:
-"∃ #i. (FinishR( ) @ #i) ∧ ∀ #i.1. (Init_A( ) @ #i.1) ⇒ ⊥"
+"∃ #i. (FinishR( ) @ #i) ∧ ∀ #i.1. (Init_I( ) @ #i.1) ⇒ ⊥"
 */
 simplify
-solve( St_B_2( R, id, I, ltkIR, ltkRI, x ) ▶₀ #i )
+solve( St_R_2( R, id, I, ltkIR, ltkRI, x ) ▶₀ #i )
   case R_1
   SOLVED // trace found
 qed
@@ -171,13 +168,13 @@ guarded formula characterizing all counter-examples:
 simplify
 solve( Commit( a, b, <'I', 'R', t> ) @ #i )
   case I_2
-  solve( St_A_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
+  solve( St_I_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
     case I_1
-    solve( !KU( sign(~x, ~k.1) ) @ #vk )
+    solve( !KU( mac(~x, ~k.1) ) @ #vk )
       case R_2
       by contradiction /* from formulas */
     next
-      case c_sign
+      case c_mac
       solve( !KU( ~k.1 ) @ #vk.2 )
         case Reveal_ltk
         by contradiction /* from formulas */
@@ -210,15 +207,15 @@ guarded formula characterizing all counter-examples:
 simplify
 solve( Commit( a, b, <'I', 'R', t> ) @ #i )
   case I_2
-  solve( St_A_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
+  solve( St_I_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
     case I_1
-    solve( !KU( sign(~x, ~k.1) ) @ #vk )
+    solve( !KU( mac(~x, ~k.1) ) @ #vk )
       case R_2
       solve( (#i2 < #i)  ∥ (#i < #i2) )
         case case_1
         solve( Commit( a2, b2, <'I', 'R', ~x> ) @ #i2 )
           case I_2
-          solve( St_A_2( a2, id.1, b2, ltkIR, ltkRI, ~x ) ▶₀ #i2 )
+          solve( St_I_2( a2, id.1, b2, ltkIR, ltkRI, ~x ) ▶₀ #i2 )
             case I_1
             by contradiction /* cyclic */
           qed
@@ -227,14 +224,14 @@ solve( Commit( a, b, <'I', 'R', t> ) @ #i )
         case case_2
         solve( Commit( a2, b2, <'I', 'R', ~x> ) @ #i2 )
           case I_2
-          solve( St_A_2( a2, id.1, b2, ltkIR, ltkRI, ~x ) ▶₀ #i2 )
+          solve( St_I_2( a2, id.1, b2, ltkIR, ltkRI, ~x ) ▶₀ #i2 )
             case I_1
             by contradiction /* cyclic */
           qed
         qed
       qed
     next
-      case c_sign
+      case c_mac
       solve( !KU( ~k.1 ) @ #vk.2 )
         case Reveal_ltk
         by contradiction /* from formulas */
@@ -259,9 +256,9 @@ guarded formula characterizing all counter-examples:
 */
 simplify
 solve( Commit( a, b, <'R', 'I', t> ) @ #i )
-  case R_1
-  solve( St_B_1( a, id, b, ltkIR, ltkRI ) ▶₀ #i )
-    case Init_B
+  case R_2
+  solve( St_R_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
+    case R_1
     SOLVED // trace found
   qed
 qed
@@ -289,9 +286,9 @@ guarded formula characterizing all counter-examples:
 */
 simplify
 solve( Commit( a, b, <'R', 'I', t> ) @ #i )
-  case R_1
-  solve( St_B_1( a, id, b, ltkIR, ltkRI ) ▶₀ #i )
-    case Init_B
+  case R_2
+  solve( St_R_2( a, id, b, ltkIR, ltkRI, t ) ▶₀ #i )
+    case R_1
     SOLVED // trace found
   qed
 qed
