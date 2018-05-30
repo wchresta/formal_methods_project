@@ -171,26 +171,26 @@ lemma executable:
 
 // Given, immutable lemmas
 
-lemma secrecy:
+lemma secrecy: // verified
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma secrecy_PFS:
+lemma secrecy_PFS: // disproven
   "All A x #i. 
     Secret(A,x) @i ==> 
     not (Ex #j. K(x)@j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i & r < i)"
 
 
-lemma noninjectiveagreementINITIATOR:
+lemma noninjectiveagreementINITIATOR: // verified
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
     ==> (Ex #j. Running(b,a,<'I','R',t>) @j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma injectiveagreementINITIATOR:
+lemma injectiveagreementINITIATOR: // verified
   "All a b t #i. 
     Commit(a,b,<'I','R',t>) @i
     ==> (Ex #j. Running(b,a,<'I','R',t>) @j 
@@ -199,13 +199,13 @@ lemma injectiveagreementINITIATOR:
               | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
 
-lemma noninjectiveagreementRESPONDER:
+lemma noninjectiveagreementRESPONDER: // verified
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i
     ==> (Ex #j. Running(b,a,<'R','I',t>) @j)
         | (Ex X #r. Reveal(X)@r & Honest(X) @i)"
 
-lemma injectiveagreementRESPONDER:
+lemma injectiveagreementRESPONDER: // verified
   "All a b t #i. 
     Commit(a,b,<'R','I',t>) @i
     ==> (Ex #j. Running(b,a,<'R','I',t>) @j 
