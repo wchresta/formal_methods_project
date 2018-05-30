@@ -3,7 +3,7 @@ begin
 
 builtins: signing, diffie-hellman
 // mac{X}k is a message authentication code for X with the key k
-// hash/1 is a has functoin
+// hash/1 is a hash function
 functions: mac/2, hash/1
 
 // Set up symmetric keys
@@ -19,7 +19,7 @@ rule Reveal_ltk:
   [ !Ltk(A, ltkA) ] --[ Reveal(A) ]-> [ Out(ltkA) ]
 
 /*
-  We model the following protocol from section 3.4
+  We model the following protocol from section 4
   This is improved from OTR3
 
   1. A -> B: g^x

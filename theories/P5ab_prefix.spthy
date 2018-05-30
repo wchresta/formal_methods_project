@@ -18,7 +18,7 @@ functions:
 /*
   We model the following protocol
 
-  1. A -> B: x, enc{s}_{h(K(A,B))}
+  1. A -> B: x, enc{s}_{h(K(A,B))}, p
   2. A <- B: y
   3. A -> B: {<'I',y>}_{sIR}
   4. A <- B: {<'R',x>}_{sIR}

@@ -172,9 +172,6 @@ lemma attacker_can_be_I: // verified
    & (All #j1 #j2. Init_R()@j1 & Init_R()@j2 ==> #j1 = #j2)
    "
    
-
-
-
 // Given, immutable lemmas
 /*
 lemma secrecy:

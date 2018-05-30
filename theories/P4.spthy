@@ -18,8 +18,8 @@ functions: mac/2, kdf/3
 
   1. A -> B: x, enc{s}h(kIR)
   2. A <- B: y
-  3. A -> B: sign{<'I',y>}sIR
-  4. A <- B: sign{<'R',x>}sIR
+  3. A -> B: mac{<'I',y>}sIR
+  4. A <- B: mac{<'R',x>}sIR
  */
 
 rule Init_A:
