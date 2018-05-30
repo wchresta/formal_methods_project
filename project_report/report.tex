@@ -1,6 +1,6 @@
 \documentclass[a4paper]{article}
 
-\title{Project report: Formal Methods for Information Security}
+\title{Project Report: Formal Methods for Information Security}
 \author{Sabina Fischlin \& Wanja Chresta}
 
 \begin{document}
@@ -10,47 +10,218 @@
 \newcommand{\LTK}{\texttt{!LTK}}
 
 \section{PACE Protocol}
+In this first part we describe our results regarding the modelling of the PACE protocol. For each of the theories in this section we have modelled the setup of the symmetric keys by using a fresh value, which we have used as a parameter for the \LTK \ fact. The actors have two separate (uni-directional) symmetric shared keys $K(A,B)$ and $k(B,A)$ (in the theories denoted by $ltkIR$ and $ltkRI$) in their initial state. As we have seen in the lectures we have specified a reveal rule which outputs the key and reveals both A and B. \par \noindent
+To model a MAC function we have added a user-defined function $mac/2$. \par
+Additionally we have added a reasonable restriction that the long-term keys must be unique in order to rule out some otherwise possible attacks.
+As instructed in the project description we have also implemented an executability lemma, which we have proven for each of the theories.
+
 \subsection{Assignment 1.1, Theory P1}
-For this theory, we use the signing builtin to be able to create a MAC. We setup symmetric keys using a \Fr{} value that goes into \LTK .
-\subsubsection{Alice and Bob}
+As given in the assignment description we have modelled the following protocol:
 \begin{eqnarray*}
 A \to B        & : & x\\
 A \leftarrow B & : & [x]_{k(A,B)}
 \end{eqnarray*}
-\subsubsection{Results}
-We were able to prove {\em noninjective} and {\em injective agreement} for the initiator. We have been also able to disproove them for the responder (obviously).
+
+\noindent We have added {\it attacker\_can\_be\_I} and {\it attacker\_can\_be\_R} to the immutable lemmas to ensure (and prove) that the intruder can act as a regular protocol participant.
+
+\subsubsection*{Results}
+
+We have proven {\em non-injective} and {\em injective agreement} for the initiator. Obviously, for the responder they have been disproven. We have also been able to verify the additional lemmas regarding the intruder acting as a participant.
+
 
 \subsection{Assignment 1.2, Theory P2}
-We interleave two P1 protocols with eachother, as described in the assignment. The actors have seperate symmetric shared keys $k(A,B)$ and $k(B,A)$ in their initial state.
-Have defined the 
-\subsubsection{Alice and Bob}
+\subsubsection{Section {\it\bf (a)}, Theory P2a}
+In the first part we interleave two instances of the P1 protocol with each other as described in the assignment in the following way:
 \begin{eqnarray*}
 A \to B        & : & x\\
 A \leftarrow B & : & y\\
 A \to B        & : & [y]_{k(A,B)}\\
-A \leftarrow B & : & [x]_{k(A,B)} 
+A \leftarrow B & : & [x]_{k(B,A)} 
 \end{eqnarray*}
-\subsubsection{Results}
-...
+
+\subsubsection*{Results}
+We have found attacks on both the {\em non-injective} and the {\em injective agreement} for the initiator and responder (described in the next section).
+
+\subsubsection{Section {\it\bf (b)}, Theory P2b}
+In the attacks in section $(a)$ the intruder was able to inject values for $x$ and $y$ and therefore authentication was violated for both initiator and responder in different ways. By injecting a value for $y$, the initiator A was able to complete the run thinking it was talking to B, but never having done so. In fact B was never in the role of the responder, but a second initiator:
+\begin{eqnarray*}
+       \leftarrow B(I) & : & y ({dropped})\\
+A(I) \to            B(I) & : & x\\
+A(I) \leftarrow        & : & y' ({injected})\\
+A(I) \to                   & : & [y']_{k(A,B)} ({dropped})\\
+A(I) \leftarrow B(I) & : & [x']_{k(B,A)}
+\end{eqnarray*}
+A here commits to the value $y'$, which B never even received. \par \noindent
+
+In the attack which violates the {\em non-injective agreement} for the responder, the intruder can make the responder commit to the injected value $x'$ in the following way:
+\begin{eqnarray*}
+        \leftarrow A(I)  & : & x ({dropped})\\
+B(R) \leftarrow        & : & x' ({injected})\\
+B(R) \to            A(I) & : & y\\
+B(R) \leftarrow A(I) & : & [y]_{k(A,B)}\\
+B(R) \to                  & : & [x']_{k(B,A)} ({dropped})
+\end{eqnarray*}
+
+In order to prevent these attacks we have included both nonces in the maced messages and have also added tags:
+\begin{eqnarray*}
+A \to B        & : & x\\
+A \leftarrow B & : & y\\
+A \to B        & : & ["I", x, y]_{k(A,B)}\\
+A \leftarrow B & : & ["R", x, y]_{k(B,A)} 
+\end{eqnarray*}
+
+\subsubsection*{Results}
+With this modification we have been able to prove {\em non-injective} and {\em injective agreement} for both participants on nonces $x$ and $y$.
+
 
 \subsection{Assignment 1.3, Theory P3}
-...
-\subsubsection{Alice and Bob}
+\subsubsection{Section {\it\bf (a)}, Theory P3a}
+As instructed in the assignment description we have added the user-defined function $kdf/3$ and have modelled the protocol in the following way:
 \begin{eqnarray*}
-...
+A \to B        & : & x\\
+A \leftarrow B & : & y\\
+A \to B        & : & ["I",y]_{sIR}\\
+A \leftarrow B & : & ["R",x]_{sIR} 
 \end{eqnarray*}
-\subsubsection{Results}
+\noindent where $sIR$ denotes the session key derived from $K(A,B)$ and the nonces $x$ and $y$. Note that we have kept the tags in the maced messages, but each participant only macs its own nonce.
+
+\subsubsection*{Results}
+We have proven {\em non-injective} and {\em injective agreement} for both participants on $x$, $y$ and $sIR$ as well as {\em secrecy} for this model (however not {\em perfect-forward-secrecy}).
+
+\subsubsection{Section {\it\bf (b)}}
+Unlike in the P2 protocol, information about both nonces is part of the session key $sIR$. In other words the derivation of the session key $sIR$ directly relies on both parties agreeing on the same nonces (including their own). Therefore including the role's own nonce in the maced message is no longer necessary. However the tags are still necessary (a reflection attack is otherwise possible).
+(It might even be possible to remove $x$ from the maced message and still reach an agreement, however we did not check this.)
 
 \subsection{Assignment 1.4, Theory P4}
-...
-\subsubsection{Alice and Bob}
+Again we have used the function $kdf/3$ and have made use of the builtins {\em hashing} and {\em symmetric-encryption}. We have modelled the protocol below (as before $sIR$ stands for the session key, this time derived from the nonces $s$, $x$ and $y$):
 \begin{eqnarray*}
-...
+A \to B        & : & x, \{s\}_{h(k(A,B))}\\
+A \leftarrow B & : & y\\
+A \to B        & : & ["I",y]_{sIR}\\
+A \leftarrow B & : & ["R",x]_{sIR} 
 \end{eqnarray*}
-\subsubsection{Results}
-...
+
+\subsubsection*{Results}
+We have been able to prove the same lemmas as for the protocol P3a.
 
 \subsection{Assignment 1.5, Theory P5}
-c) relies on the secrecy for a guard against MitM attack. Same as could be done on DH. Need the secrecy since g^y and g^x are transmitted as plaintext.
+For this part of the PACE protocol we have added the user-defined function $map/2$ to derive $g$. We have also made use of the {\em diffie-hellman} builtin.
+\subsubsection{Section {\it\bf (a)}}
+In this section we have used almost the same model as in P4 with the exception of $sIR$ being derived in a different way and the addition of the public domain parameter $p$ being appended in plaintext to the first message, i.e.:
+\begin{eqnarray*}
+A \to B        & : & x, \{s\}_{h(k(A,B))}, p\\
+A \leftarrow B & : & y\\
+A \to B        & : & ["I",y]_{sIR}\\
+A \leftarrow B & : & ["R",x]_{sIR} 
+\end{eqnarray*}
+{\em Perfect-forward-secrecy} could not be proven for this protocol. This is due to the fact that the reveal of an agent's long-term key will make it possible to derive $s$ and therefore the generator $g$. Since the nonces $x$ and $y$ have been made public, the session key $sIR$ is no longer secret.
+\subsubsection{Section {\it\bf (b)}}
+In order to prove {\em perfect-forward-secrecy} we have adjusted the model in the following way:
+\begin{eqnarray*}
+A \to B        & : & {g^x}, \{s\}_{h(k(A,B))}, p\\
+A \leftarrow B & : & {g^y}\\
+A \to B        & : & ["I",{g^y}]_{sIR}\\
+A \leftarrow B & : & ["R",{g^x}]_{sIR} 
+\end{eqnarray*}
+{\em Perfect-forward-secrecy} now holds since $x$ and $y$ are never sent and therefore the generator $g$ being made public has no effect on the secrecy of past session keys.\par Also all other given lemmas (i.e. {\em non-injective} and {\em injective agreement} for both participants on $sIR$ and the half-keys ${g^x}$ and ${g^y}$, and {\em secrecy} including {\em perfect-forward-secrecy}) have been proven for this protocol. \par \noindent (Note that the file {\em 5ab.spthy} only includes this adjusted protocol)
+\subsubsection{Section {\it\bf (c)}}
+The protocol relies on the secrecy of $g$ since $g^x$ and $g^y$ are sent as plaintext. If $g$ were known this could result in a {\em Man in the Middle attack}, similar to the active attack on the original Diffie-Hellman protocol. By keeping $g$ secret we forego the necessity to authenticate $g^x$ and $g^y$. \par
+However, as mentioned above, if $g$ is later revealed we are still guaranteed {\em perfect-forward-secrecy} since $x$ and $y$ are never sent. (Note that the secrecy is trivially a must for the protocol described in section {(a)}.)
+\subsubsection{Section {\it\bf (d)}}
+As instructed we have removed the tags in the third and fourth message resulting in the protocol:
+\begin{eqnarray*}
+A \to B        & : & {g^x}, \{s\}_{h(K(A,B))}, p\\
+A \leftarrow B & : & {g^y}\\
+A \to B        & : & [{g^y}]_{sIR}\\
+A \leftarrow B & : & [{g^x}]_{sIR} 
+\end{eqnarray*}
+
+\subsubsection*{Results}
+As expected the modification resulted in a reflection attack (included as {\em P5d-proof\_prefix.spthy}). As suggested in the assignment, we have added the restriction {\em NotEq\_MustHold}, after which all the lemmas could again be proven.
+
+
+\section{Off-the-Record Messaging Protocol}
+In this section we describe our results regarding the {\em Off-the-Record Messaging Protocol} as described in the provided reference \cite{1}. \par
+We have made use of the builtins {\em asymmetric-encryption}, {\em signing} and {\em diffie-hellman} in order to realise the requirements. Registration of the public key and its reveal have been modelled analogously to what we have seen in the lectures. As before we have also implemented and proven our own executability lemma.
+
+\subsection{Assignment 2.1, Theory OTR1}
+We have modelled the protocol as described in Section 2.1 of \cite{1}:
+\begin{eqnarray*}
+A \to B            & : & \{{g^x}\}_{ltkA}, {pk(ltkA)}\\
+A \leftarrow B & : & \{{g^y}\}_{ltkB}, {pk(ltkB)}
+\end{eqnarray*}
+where $ltkA$ is the long-term (secret) key of A and $pk(ltkA)$ its corresponding public key. $x$ and $y$ are secret fresh values and $g$ is a not necessarily fresh public value (as in the Diffie-Hellman protocol). This corresponds directly to the protocol specified in \cite{1}.
+
+\subsection{Assignment 2.2, Theory OTR2}
+In the theory {OTR2} we have specified the lemma {\em findAttack}, with which we were able to find (and prove) the specified attack trace from Section 3.1 of \cite{1}. (We have also added some restrictions in order to reach this trace.) \par \noindent
+
+\subsection{Assignment 2.3, Theory OTR3}
+As instructed we model the following improvement of OTR1 from Section 3.1 in \cite{1}:
+\begin{eqnarray*}
+A \to B            & : & {g^x}, \{{g^x},B\}_{ltkA}, {pk(ltkA)}\\
+A \leftarrow B & : & {g^y}, \{{g^y},A\}_{ltkB}, {pk(ltkB)}
+\end{eqnarray*}
+
+\subsubsection*{Analysis}
+We first look at the point of view of the {\bf Initiator}. We were able to find the following attack violating the {\em injective agreement}. In this attack an actor can be tricked into taking the responder's role while he thinks he is in the role {\em I}: \par \noindent
+First A wants to talk to B in the role of the initiator:
+\begin{eqnarray*}
+A(I) \to                  & : & {g^x}, \{{g^x},B\}_{ltkA}, {pk(ltkA)}
+\end{eqnarray*}
+Next B wants to talk to A, also in the role of the initiator:
+\begin{eqnarray*}
+       \leftarrow B(I) & : & {g^y}, \{{g^y},A\}_{ltkB}, {pk(ltkB)}
+\end{eqnarray*}
+Then A receives the initiating request from B and interprets it as its response (since the two are indistinguishable):
+\begin{eqnarray*}
+A(I) \leftarrow        & : & {g^y}, \{{g^y},A\}_{ltkB}, {pk(ltkB)}
+\end{eqnarray*}
+A finishes the run thinking it has finished key-establishment with B (and now has a channel with B), but B was never in the role of the responder. This could even happen by accident if both A and B want to initiate a connection at the same time and send their first messages before the message of the other participant has arrived. \par \noindent
+We have selected this attack in the proof file. \par
+
+We now look at the point of view of the {\bf Responder}. The problem in this case is that for the responder, injectivity does not hold trivially: if both the initiator and the responder want to agree on ${K=g^{xy}}$, then the initiator has to receive ${g^y}$ before he can commit to $K$. However, this can only happen after the responder has committed to $K$. The attacker can therefore just block the second message (i.e. the response) and the initiator will never commit to $K$. This obviously breaks the injective agreement for the responder. This attack trace looks as follows:
+\begin{eqnarray*}
+A(I)   \to              B(R) & : & {g^x}, \{{g^x},B\}_{ltkA}, {pk(ltkA)}\\
+B(R) \to                      & : & {g^y}, \{{g^y},A\}_{ltkB}, {pk(ltkB)}
+\end{eqnarray*}
+In this case B commits to ${K=g^{xy}}$, but A can never commit.
+
+\subsection{Assignment 2.4, Theory OTR4}
+We have modelled the improvement of OTR3 as specified in Section 4 of \cite{1}:
+\begin{eqnarray*}
+A \to B            & : & {g^x}\\
+A \leftarrow B & : & {g^y}\\
+A \to B            & : & A, \{{g^x}, {g^y}\}_{ltkA}, ["0", A]_{h(g^{xy})}, {pk(ltkA)}\\
+A \leftarrow B & : & B, \{{g^x}, {g^y}\}_{ltkB}, ["1", B]_{h(g^{xy})}, {pk(ltkB)}
+\end{eqnarray*}
+Note that in OTR4 we have added our own user-defined functions $mac/2$ and $hash/1$ as in Part 1.
+
+\subsubsection*{Analysis}
+We have looked at this protocol with regards two separate cases: one including the possibility of agents talking to themselves and one where we excluded this possibility by adding a restriction {\em NotEqMustHold}. The reason behind this is so that we could find more interesting attacks beyond reflection attacks. \par
+For the first case we have been able to break the {\em non-injective agreement} for both the initiator and the responder (proofs stored as {\em OTR4-proof.spthy}). \par 
+In the latter case, i.e. where we excluded agents talking to themselves, we were able to prove {\em secrecy}, {\em PFS} and {\em injective agreement} for the initiator. However, we found the same attack as in the first case for the responder (proofs stored as {\em OTR4-proof-noteq.spthy}). We will now describe the attacks we found in both cases in more detail.\par
+{\bf Breaking the non-injective agreement for the initiator when A may be B}. We have found the following attack trace:
+\begin{eqnarray*}
+A(I) \to            & : & {g^x}\\
+A(I) \leftarrow & : & {g}\\
+A(I) \to            & : & A, \{{g^x}, {g}\}_{ltkA}, ["0", A]_{h(g^x)}, {pk(ltkA)}\\
+A(I) \leftarrow & : & B, \{{g^x}, {g}\}_{ltkA}, ["1", A]_{h(g^x)}, {pk(ltkA)}
+\end{eqnarray*}
+A will in this case commit to ${K=g^x}$ without any agent ever being in the role of the responder. It should be noted that this also breaks secrecy for {K}, since ${K=g^x}$ which is made public (i.e. A has now established a revealed key to talk to itself). \par
+{\bf Breaking the non-injective agreement for the receiver} (this attack is possible in both cases). We have found the following attack trace where A tries to initiate a connection with C, but B will interpret this as a A initiating a connection with him instead:
+\begin{eqnarray*}
+A(I) \to            & : & {g^x} (meant for C)\\
+       \to            B(R) & : & {g^x}\\
+       \leftarrow B(R) & : & {g^y}\\
+A(I) \leftarrow          & : & {g^y}\\
+A(I) \to                     & : & A, \{{g^x}, {g^y}\}_{ltkA}, ["0", A]_{h(g^{xy})}, {pk(ltkA)} (meant for C)\\
+       \to            B(R) & : & A, \{{g^x}, {g^y}\}_{ltkA}, ["0", A]_{h(g^{xy})}, {pk(ltkA)}\\
+       \leftarrow B(R) & : & B, \{{g^x}, {g^y}\}_{ltkB}, ["1", B]_{h(g^{xy})}, {pk(ltkB)}
+\end{eqnarray*}
+B has committed to ${K=g^{xy}}$ as a shared secret with A, even though A has never run the protocol with B, which violates the {\em non-injective agreement} for the responder. This attack is possible, since none of the messages contain their intended recipient.
+
+\begin{thebibliography}{999}
+\bibitem{1} Mario Di Raimondo, Rosario Gennaro, and Hugo Krawczyk. Secure Off-the-Record Messaging. In {\em WPES}, pages 81-89, 2005.
+\end{thebibliography}
 
 \end{document}
